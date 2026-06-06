@@ -1,0 +1,1921 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
+  <title>えのまち - モバイル</title>
+  <!-- heic2any（HEIC変換フォールバック用） -->
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+  <!-- Supabase JS クライアント -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- QRコード生成 -->
+  <!-- QRコード：外部APIで生成（ライブラリ不要） -->
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; 
+    body { background:#000; overflow:hidden; }
+    #screen { width:100vw; height:100vh; position:relative; }
+    #bgCanvas  { position:absolute; inset:0; width:100%; height:100%; }
+    #charCanvas{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+
+    /* ===== ボタン ===== */
+    #addBtn {
+      position:absolute; bottom:20px; right:20px;
+      background:rgba(255,255,255,0.92); border:none; border-radius:50px;
+      padding:12px 24px; font-size:16px; font-weight:bold; color:#555;
+      cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.2); z-index:100;
+      transition:transform 0.15s;
+    }
+    #addBtn:hover { transform:scale(1.05); }
+    #fileInput { display:none; }
+
+    /* ===== 設定ボタン＆パネル ===== */
+    
+    #settingsBtn:hover { transform:scale(1.05); }
+    
+    #settingsPanel.open { display:flex; }
+    
+    #countdown {
+      font-size:28px; font-weight:900; color:#334; text-align:center;
+      letter-spacing:0.05em;
+    }
+    #intervalRow {
+      display:flex; align-items:center; gap:8px;
+      font-size:13px; color:#555;
+    }
+    #intervalInput {
+      width:52px; padding:6px 8px; border:1.5px solid #ccc;
+      border-radius:8px; font-size:15px; font-weight:bold;
+      text-align:center; color:#334;
+    }
+    #intervalSaveBtn {
+      margin-top:4px; padding:8px; border:none; border-radius:10px;
+      background:#334a7c; color:#fff; font-size:13px; font-weight:bold;
+      cursor:pointer; transition:background 0.15s;
+    }
+    #intervalSaveBtn:hover { background:#1a2f5a; }
+
+    /* ===== ローディング ===== */
+    #loadingOverlay {
+      display:none; position:absolute; inset:0;
+      background:rgba(0,0,0,0.55); z-index:200;
+      align-items:center; justify-content:center; flex-direction:column;
+      gap:14px; color:white; font-size:17px; font-weight:bold;
+    }
+    #loadingOverlay.show { display:flex; }
+    .spinner {
+      width:48px; height:48px;
+      border:5px solid rgba(255,255,255,0.3);
+      border-top-color:white; border-radius:50%;
+      animation:spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ===== QRコードパネル（右下） ===== */
+    
+    
+    
+    
+    
+    
+    #qrCloseBtn:hover { color:#555; }
+    
+    #qrToggleBtn:hover { transform:scale(1.05); }
+
+    /* ===== デバッグ表示 ===== */
+    #debugInfo {
+      position:absolute; bottom:70px; right:20px;
+      background:rgba(0,0,0,0.6); color:#0f0;
+      font:11px monospace; padding:6px 10px; border-radius:6px;
+      z-index:100; display:none;
+    }
+
+    /* ===== オープニング動画オーバーレイ ===== */
+    #openingOverlay {
+      position:fixed; inset:0; z-index:999;
+      background:#000;
+      display:flex; align-items:center; justify-content:center;
+      transition:opacity 0.8s ease;
+    }
+    #openingOverlay.fadeout { opacity:0; pointer-events:none; }
+    #openingVideo {
+      position:absolute; inset:0;
+      width:100%; height:100%;
+      object-fit:contain;
+      background:#000;
+      display:none;
+    }
+    /* タップしてはじめる スタート画面 */
+    #startScreen {
+      position:absolute; inset:0;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center; gap:28px;
+      cursor:pointer;
+      background: radial-gradient(ellipse at center, #1a3a5c 0%, #000 100%);
+    }
+    #startTitle {
+      font-size:clamp(36px,8vw,80px); font-weight:900;
+      color:#fff; letter-spacing:0.12em;
+      text-shadow: 0 0 40px rgba(120,180,255,0.7);
+    }
+    #startBtn {
+      width:90px; height:90px; border-radius:50%;
+      background:rgba(255,255,255,0.15);
+      border:3px solid rgba(255,255,255,0.6);
+      display:flex; align-items:center; justify-content:center;
+      font-size:40px;
+      animation: pulsebtn 1.8s ease-in-out infinite;
+    }
+    @keyframes pulsebtn {
+      0%,100%{ transform:scale(1);   box-shadow:0 0 0   rgba(255,255,255,0.4); }
+      50%    { transform:scale(1.1); box-shadow:0 0 30px rgba(255,255,255,0.4); }
+    }
+    #startSub {
+      color:rgba(255,255,255,0.55); font-size:15px; letter-spacing:0.1em;
+    }
+    /* 動画再生中のスキップヒント */
+    #skipHint {
+      position:absolute; bottom:30px; right:30px;
+      color:rgba(255,255,255,0.55); font-size:13px;
+      letter-spacing:0.05em; display:none;
+      animation: blinkHint 2s ease-in-out infinite;
+    }
+    @keyframes blinkHint { 0%,100%{opacity:0.3} 50%{opacity:1} }
+  </style>
+</head>
+<body>
+
+<!-- ===== オープニング動画 ===== -->
+<div id="openingOverlay">
+  <!-- 動画（最初は非表示） -->
+  <video id="openingVideo" src="OpeningMov.mp4"
+         playsinline preload="none">
+  </video>
+  <!-- スタート画面 -->
+  <div id="startScreen">
+    <div id="startTitle">えのまち</div>
+    <div id="startBtn">▶</div>
+    <div id="startSub">タップしてはじめる</div>
+  </div>
+  <div id="skipHint">タップしてスキップ ▶</div>
+</div>
+
+<div id="screen">
+  <canvas id="bgCanvas"></canvas>
+  <canvas id="charCanvas"></canvas>
+
+  <div id="loadingOverlay">
+    <div class="spinner"></div>
+    <div id="loadingText">処理中やで...✂️</div>
+  </div>
+
+  <button id="addBtn">🎨 えをついか</button>
+  <input type="file" id="fileInput" accept="image/*" multiple>
+
+
+  <!-- QRコードパネル（右下） -->
+  
+  <!-- QR再表示ボタン（非表示時のみ表示） -->
+  
+
+  <!-- 設定ボタン（左下） -->
+  
+  
+
+  <div id="debugInfo"></div>
+</div>
+
+<script>
+let announcementState = null;
+
+(function initOpeningSystem() {
+  const overlay       = document.getElementById('openingOverlay');
+  const video         = document.getElementById('openingVideo');
+  const startScreen   = document.getElementById('startScreen');
+  const skipHint      = document.getElementById('skipHint');
+  const intervalInput = document.getElementById('intervalInput');
+  const saveBtn       = document.getElementById('intervalSaveBtn');
+  const countdownEl   = document.getElementById('countdown');
+  const countdownSmall= document.getElementById('countdownSmall');
+
+  let intervalMin   = 3;
+  let remainingSec  = intervalMin * 60;
+  let countdownTimer= null;
+
+  const bgMusic = new Audio('drawing sound.mp3');
+  bgMusic.loop   = true;
+  bgMusic.volume = 0.6;
+
+  function resumeBgMusic() {
+    if (bgMusic.paused) {
+      bgMusic.play().catch(() => {});
+    }
+  }
+  function pauseBgMusic() {
+    bgMusic.pause();
+  }
+
+  function fmt(sec) {
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return `${m}:${String(s).padStart(2,'0')}`;
+  }
+
+  function reactivateCharacters() {
+    if (typeof characters === 'undefined') return;
+    characters.forEach(c => {
+      if (c.leaving) return;
+      const spd = 2.0 + Math.random() * 1.2;
+      const ang = (Math.random() - 0.5) * 1.0;
+      const sx  = Math.random() < 0.5 ? 1 : -1;
+      c.vx = Math.cos(ang) * spd * sx;
+      c.vy = Math.sin(ang) * spd;
+      c.dir = Math.sign(c.vx);
+      if (typeof ANIM_KEYS !== 'undefined') {
+        const movable = ANIM_KEYS.filter(k => k !== 'sleep');
+        c.animType = movable[Math.floor(Math.random() * movable.length)];
+      }
+      c.animLifetime = (8 + Math.random() * 12) * 60;
+      c.animAge      = Math.floor(Math.random() * c.animLifetime * 0.6);
+      c.chatState.active  = false;
+      c.chatState.cooldown = 0;
+    });
+  }
+
+  function closeOpening() {
+    overlay.style.opacity = '';
+    overlay.classList.add('fadeout');
+
+    let closed = false;
+    const fallback = setTimeout(finishClose, 1100);
+    overlay.addEventListener('transitionend', () => {
+      clearTimeout(fallback);
+      finishClose();
+    }, { once: true });
+
+    function finishClose() {
+      if (closed) return;
+      closed = true;
+      overlay.style.display = 'none';
+      video.pause();
+      try { reactivateCharacters(); } catch(e) { console.warn('reactivate:', e); }
+      resumeBgMusic();
+      resetTimer();
+    }
+  }
+
+  function playVideo() {
+    pauseBgMusic();
+    startScreen.style.display = 'none';
+    video.style.display  = 'block';
+    skipHint.style.display = 'block';
+    video.currentTime = 0;
+    video.play().catch(closeOpening);
+  }
+
+  function triggerOpening() {
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+
+    const chars = typeof characters !== 'undefined' ? characters : [];
+    const SW = window.innerWidth;
+    const SH = window.innerHeight;
+    const n = chars.length;
+    let _gxL = SW * 0.10, _gxR = SW * 0.90;
+    if (typeof bgImage !== 'undefined' && bgImage) {
+      const _bs = SH / bgImage.height;
+      const _bw = bgImage.width * _bs;
+      const _bdx = (SW - _bw) / 2;
+      _gxL = _bdx + _bw * 0.05;
+      _gxR = _bdx + _bw * 0.95;
+    }
+
+    if (n > 0) {
+      chars.forEach((c, idx) => {
+        const tx = n === 1 ? (_gxL + _gxR) / 2 : _gxL + (_gxR - _gxL) * idx / (n - 1);
+        c.gatherTarget = { x: tx, y: 0 };
+        c.leaving = false;
+        if (c.chatState) { c.chatState.active = false; c.chatState.cooldown = 0; }
+      });
+    }
+
+    setTimeout(() => {
+      if (n > 0) {
+        chars.forEach((c, idx) => {
+          c.gatherTarget = null;
+          c.x = n === 1 ? (_gxL + _gxR) / 2 : _gxL + (_gxR - _gxL) * idx / (n - 1);
+          c.y = 0;
+          c.vx = 0; c.vy = 0;
+          c.animType = 'wave';
+          c.t = (idx / Math.max(n, 1)) * Math.PI * 2;
+          c.dir = 1;
+        });
+      }
+      announcementState = { active: true, age: 0 };
+
+      setTimeout(() => {
+        announcementState = null;
+        try { reactivateCharacters(); } catch(e) { console.warn('reactivate:', e); }
+        overlay.classList.remove('fadeout');
+        overlay.style.opacity = '';
+        overlay.style.display = 'flex';
+        playVideo();
+      }, 2500);
+    }, 3000);
+  }
+
+  startScreen.addEventListener('click', playVideo);
+  video.addEventListener('ended',  closeOpening);
+  video.addEventListener('click',  closeOpening);
+  skipHint.addEventListener('click', closeOpening);
+
+  function tick() {
+    remainingSec--;
+    countdownEl.textContent     = fmt(remainingSec);
+    countdownSmall.textContent  = fmt(remainingSec);
+    if (remainingSec <= 0) {
+      clearInterval(countdownTimer); countdownTimer = null;
+      triggerOpening();
+    }
+  }
+  function startTimer() {
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = setInterval(tick, 1000);
+  }
+  function resetTimer() {
+    remainingSec = intervalMin * 60;
+    countdownEl.textContent     = fmt(remainingSec);
+    countdownSmall.textContent  = fmt(remainingSec);
+    startTimer();
+  }
+
+  settingsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    settingsPanel.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!settingsPanel.contains(e.target) && e.target !== settingsBtn)
+      settingsPanel.classList.remove('open');
+  });
+  saveBtn.addEventListener('click', () => {
+    const v = parseInt(intervalInput.value);
+    if (v >= 1) { intervalMin = v; resetTimer(); settingsPanel.classList.remove('open'); }
+  });
+
+  resetTimer();
+})();
+
+const SUPABASE_URL   = 'https://xcrancxreztiapactveo.supabase.co';
+const FUNCTION_NAME  = 'remove-bg';
+const SUPABASE_ANON  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjcmFuY3hyZXp0aWFwYWN0dmVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzODc2ODUsImV4cCI6MjA5MDk2MzY4NX0.Jc9dV_Z4ADQoITuejBghQWhBXFRH-RDAww0EGAlkLbo';
+
+const FORMAT = {
+  head:     { sx:0.30, sy:0.06, sw:0.41, sh:0.28, pvx:0.50, pvy:0.93 },
+  torso:    { sx:0.33, sy:0.34, sw:0.33, sh:0.33, pvx:0.50, pvy:0.00 },
+  leftArm:  { sx:0.00, sy:0.34, sw:0.50, sh:0.12, pvx:0.66, pvy:0.00 },
+  rightArm: { sx:0.50, sy:0.34, sw:0.50, sh:0.12, pvx:0.32, pvy:0.00 },
+  leftLeg:  { sx:0.33, sy:0.50, sw:0.16, sh:0.47, pvx:0.50, pvy:0.28 },
+  rightLeg: { sx:0.50, sy:0.50, sw:0.16, sh:0.47, pvx:0.50, pvy:0.28 },
+};
+const DRAW_ORDER = ['rightLeg','leftLeg','rightArm','leftArm','torso','head'];
+
+const D = Math.PI / 180;
+
+const ANIMATIONS = {
+  walk: {
+    tSpeed: 5.0, moveMult: 1.2,
+    fn: (t, d) => ({
+      head: 0, torso: 0,
+      leftArm:   Math.sin(t)*12*D*d,  rightArm: -Math.sin(t)*12*D*d,
+      leftLeg:  -Math.sin(t)*18*D*d,  rightLeg:  Math.sin(t)*18*D*d,
+      bob: Math.abs(Math.sin(t))*2,
+    }),
+  },
+  run: {
+    tSpeed: 9.0, moveMult: 2.5,
+    fn: (t, d) => ({
+      head: 0, torso: 0,
+      leftArm:   Math.sin(t)*25*D*d,  rightArm: -Math.sin(t)*25*D*d,
+      leftLeg:  -Math.sin(t)*32*D*d,  rightLeg:  Math.sin(t)*32*D*d,
+      bob: Math.abs(Math.sin(t))*5,
+    }),
+  },
+  dance: {
+    tSpeed: 6.0, moveMult: 0,
+    fn: (t, d) => ({
+      head: Math.sin(t*2)*6*D, torso: 0,
+      leftArm:  -25*D + Math.sin(t*1.5)*18*D,
+      rightArm:  25*D + Math.sin(t*1.5+Math.PI)*18*D,
+      leftLeg:   Math.sin(t*1.5)*14*D*d,
+      rightLeg: -Math.sin(t*1.5)*14*D*d,
+      bob: Math.abs(Math.sin(t*2))*4,
+    }),
+  },
+  wave: {
+    tSpeed: 7.0, moveMult: 0,
+    fn: (t, d) => ({
+      head: Math.sin(t*4)*5*D, torso: 0,
+      leftArm:   50*D + Math.sin(t*6)*18*D,
+      rightArm:  -50*D + Math.sin(t*6)*18*D,
+      leftLeg:   0, rightLeg: 0,
+      bob: 2,
+    }),
+  },
+  skip: {
+    tSpeed: 7.0, moveMult: 1.5,
+    fn: (t, d) => ({
+      head: 0, torso: 0,
+      leftArm:  -14*D + Math.sin(t)*12*D*d,
+      rightArm: -14*D - Math.sin(t)*12*D*d,
+      leftLeg:   Math.sin(t)*24*D*d,
+      rightLeg: -Math.sin(t)*24*D*d,
+      bob: Math.abs(Math.sin(t*2))*7,
+    }),
+  },
+  march: {
+    tSpeed: 5.0, moveMult: 1.1,
+    fn: (t, d) => ({
+      head: 0, torso: 0,
+      leftArm:   Math.sin(t)*16*D*d,  rightArm: -Math.sin(t)*16*D*d,
+      leftLeg:  -Math.sin(t)*32*D*d,  rightLeg:  Math.sin(t)*32*D*d,
+      bob: Math.abs(Math.sin(t))*4,
+    }),
+  },
+  punch: {
+    tSpeed: 5.5, moveMult: 0.6,
+    fn: (t, d) => ({
+      head: 0, torso: 0,
+      leftArm:  -Math.max(0, Math.sin(t))*38*D*d,
+      rightArm:  Math.max(0, Math.sin(t+Math.PI))*38*D*d,
+      leftLeg:   Math.sin(t*0.5)*10*D*d,
+      rightLeg: -Math.sin(t*0.5)*10*D*d,
+      bob: 2,
+    }),
+  },
+  jump: {
+    tSpeed: 7.0, moveMult: 1.4,
+    fn: (t, d) => {
+      const up = Math.max(0, Math.sin(t));
+      return {
+        head: 0, torso: 0,
+        leftArm:  -up * 32*D,
+        rightArm: -up * 32*D,
+        leftLeg:   up * 22*D,
+        rightLeg:  up * 22*D,
+        bob: -up * 65,
+      };
+    },
+  },
+  sway: {
+    tSpeed: 3.5, moveMult: 0.3,
+    fn: (t, d) => ({
+      head: Math.sin(t*0.7)*6*D, torso: 0,
+      leftArm:  -18*D + Math.sin(t)*10*D,
+      rightArm:  18*D - Math.sin(t)*10*D,
+      leftLeg:   Math.sin(t)*7*D,
+      rightLeg: -Math.sin(t)*7*D,
+      bob: Math.abs(Math.sin(t))*2,
+    }),
+  },
+  sleep: {
+    tSpeed: 0.8, moveMult: 0,
+    fn: (t, d) => ({
+      head:     Math.sin(t)*2*D,
+      torso:    0,
+      leftArm:  88*D,
+      rightArm: 90*D,
+      leftLeg:  0,
+      rightLeg: 0,
+      bob: Math.sin(t)*1.5,
+      bodyAngle: Math.PI * 0.5,
+      zzz: true,
+    }),
+  },
+};
+const ANIM_KEYS = Object.keys(ANIMATIONS).filter(k => k !== 'dance');
+
+const CHAT_PHRASES = [
+  'こんにちは！', 'やあ！元気？', 'どこへ行くの？',
+  'いい天気だね〜', 'また会ったね！', 'ねえねえ！',
+  'おはよう！', 'あそぼう！', 'みてみて！',
+  'わあ！', 'なんか楽しい♪', 'いっしょに行こう！',
+  'おやつ食べた？', 'きょう何するの？', 'すごいでしょ！',
+  'まってまって！', 'えへへ😊', 'ばあ！',
+];
+const MOVING_ANIMS = new Set(['walk','run','march','skip','jump']);
+
+function gaussElim(A, b) {
+  const n = b.length;
+  const M = A.map((row, i) => [...row, b[i]]);
+  for (let col = 0; col < n; col++) {
+    let max = col;
+    for (let r = col+1; r < n; r++) if (Math.abs(M[r][col]) > Math.abs(M[max][col])) max = r;
+    [M[col], M[max]] = [M[max], M[col]];
+    for (let r = 0; r < n; r++) {
+      if (r === col || M[col][col] === 0) continue;
+      const f = M[r][col] / M[col][col];
+      for (let j = col; j <= n; j++) M[r][j] -= f * M[col][j];
+    }
+  }
+  return M.map((row, i) => row[n] / row[i]);
+}
+
+function computeHomography(dstPts, srcPts) {
+  const A = [], bv = [];
+  for (let i = 0; i < 4; i++) {
+    const [dx, dy] = [dstPts[i].x, dstPts[i].y];
+    const [sx, sy] = [srcPts[i].x, srcPts[i].y];
+    A.push([dx, dy, 1, 0, 0, 0, -sx*dx, -sx*dy]); bv.push(sx);
+    A.push([0, 0, 0, dx, dy, 1, -sy*dx, -sy*dy]); bv.push(sy);
+  }
+  const h = gaussElim(A, bv);
+  return [[h[0],h[1],h[2]],[h[3],h[4],h[5]],[h[6],h[7],1]];
+}
+
+function applyH(H, x, y) {
+  const w = H[2][0]*x + H[2][1]*y + H[2][2];
+  return [(H[0][0]*x + H[0][1]*y + H[0][2])/w,
+          (H[1][0]*x + H[1][1]*y + H[1][2])/w];
+}
+
+function warpPerspective(srcCanvas, srcPts, dstW, dstH) {
+  const dstPts = [{x:0,y:0},{x:dstW,y:0},{x:dstW,y:dstH},{x:0,y:dstH}];
+  const H = computeHomography(dstPts, srcPts);
+
+  const dst = document.createElement('canvas');
+  dst.width = dstW; dst.height = dstH;
+  const dctx = dst.getContext('2d');
+
+  const sW = srcCanvas.width, sH = srcCanvas.height;
+  const sd = srcCanvas.getContext('2d').getImageData(0, 0, sW, sH).data;
+  const di = dctx.createImageData(dstW, dstH);
+  const dd = di.data;
+
+  for (let y = 0; y < dstH; y++) {
+    for (let x = 0; x < dstW; x++) {
+      const [sx, sy] = applyH(H, x, y);
+      const x0 = Math.floor(sx), y0 = Math.floor(sy);
+      if (x0 < 0 || y0 < 0 || x0 >= sW-1 || y0 >= sH-1) continue;
+      const tx = sx - x0, ty = sy - y0;
+      const i00=(y0*sW+x0)*4, i10=i00+4, i01=((y0+1)*sW+x0)*4, i11=i01+4;
+      const di4 = (y*dstW+x)*4;
+      for (let c = 0; c < 4; c++) {
+        dd[di4+c] = sd[i00+c]*(1-tx)*(1-ty) + sd[i10+c]*tx*(1-ty)
+                  + sd[i01+c]*(1-tx)*ty      + sd[i11+c]*tx*ty;
+      }
+    }
+  }
+  dctx.putImageData(di, 0, 0);
+  return dst;
+}
+
+function detectAndCrop(imgCanvas) {
+  const W = imgCanvas.width, H = imgCanvas.height;
+  const imageData = imgCanvas.getContext('2d').getImageData(0, 0, W, H);
+  const SR = 0.28;
+
+  const corners = [
+    { name:'tl', x1:0,    y1:0,    x2:SR,  y2:SR  },
+    { name:'tr', x1:1-SR, y1:0,    x2:1,   y2:SR  },
+    { name:'bl', x1:0,    y1:1-SR, x2:SR,  y2:1   },
+    { name:'br', x1:1-SR, y1:1-SR, x2:1,   y2:1   },
+  ];
+
+  const detected = {};
+  for (const c of corners) {
+    const x1=Math.floor(c.x1*W), x2=Math.floor(c.x2*W);
+    const y1=Math.floor(c.y1*H), y2=Math.floor(c.y2*H);
+    let sx=0, sy=0, cnt=0;
+    for (let y=y1; y<y2; y++) {
+      for (let x=x1; x<x2; x++) {
+        const i=(y*W+x)*4;
+        if ((imageData.data[i]+imageData.data[i+1]+imageData.data[i+2])/3 < 70) {
+          sx+=x; sy+=y; cnt++;
+        }
+      }
+    }
+    if (cnt > 30) detected[c.name] = { x:sx/cnt, y:sy/cnt };
+  }
+
+  if (!['tl','tr','bl','br'].every(k => detected[k])) return null;
+
+  const { tl, tr, bl, br } = detected;
+
+  const dstW = Math.round((Math.hypot(tr.x-tl.x, tr.y-tl.y) + Math.hypot(br.x-bl.x, br.y-bl.y)) / 2);
+  const dstH = Math.round((Math.hypot(bl.x-tl.x, bl.y-tl.y) + Math.hypot(br.x-tr.x, br.y-tr.y)) / 2);
+  if (dstW < 50 || dstH < 50) return null;
+
+  const srcPts = [tl, tr, br, bl];
+  const warped = warpPerspective(imgCanvas, srcPts, dstW, dstH);
+
+  const PAD = Math.round(Math.min(dstW, dstH) * 0.04);
+  const cW = dstW - PAD*2, cH = dstH - PAD*2;
+  const cropped = document.createElement('canvas');
+  cropped.width = cW; cropped.height = cH;
+  cropped.getContext('2d').drawImage(warped, PAD, PAD, cW, cH, 0, 0, cW, cH);
+
+  return { canvas: cropped, method: 'template' };
+}
+
+function removeWhiteBackground(srcCanvas) {
+  const W = srcCanvas.width, H = srcCanvas.height;
+  const dst = document.createElement('canvas');
+  dst.width = W; dst.height = H;
+  const dctx = dst.getContext('2d');
+  dctx.drawImage(srcCanvas, 0, 0);
+  const id = dctx.getImageData(0, 0, W, H);
+  const d  = id.data;
+
+  function sampleColor(x, y) {
+    const i = (y*W+x)*4;
+    return [d[i], d[i+1], d[i+2]];
+  }
+  const samples = [
+    sampleColor(5,5), sampleColor(W-5,5),
+    sampleColor(5,H-5), sampleColor(W-5,H-5),
+  ];
+  const bgR = samples.reduce((s,c)=>s+c[0],0)/4;
+  const bgG = samples.reduce((s,c)=>s+c[1],0)/4;
+  const bgB = samples.reduce((s,c)=>s+c[2],0)/4;
+
+  const visited = new Uint8Array(W*H);
+  const queue   = [];
+  function enqueue(x,y){
+    if(x<0||y<0||x>=W||y>=H) return;
+    const idx=y*W+x;
+    if(visited[idx]) return;
+    const i=idx*4;
+    const dr=Math.abs(d[i]-bgR), dg=Math.abs(d[i+1]-bgG), db=Math.abs(d[i+2]-bgB);
+    if(dr+dg+db < 90){ visited[idx]=1; queue.push(idx); }
+  }
+  for(let x=0;x<W;x++){enqueue(x,0);enqueue(x,H-1);}
+  for(let y=0;y<H;y++){enqueue(0,y);enqueue(W-1,y);}
+
+  let qi=0;
+  while(qi<queue.length){
+    const idx=queue[qi++];
+    const x=idx%W, y=Math.floor(idx/W);
+    [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dx,dy])=>enqueue(x+dx,y+dy));
+  }
+
+  for(let i=0;i<W*H;i++){
+    if(visited[i]){ d[i*4+3]=0; }
+    else {
+      const ri=i*4;
+      const bright=(d[ri]+d[ri+1]+d[ri+2])/3;
+      const sat=Math.max(d[ri],d[ri+1],d[ri+2])-Math.min(d[ri],d[ri+1],d[ri+2]);
+      if(bright>200 && sat<25) d[ri+3]=Math.floor((255-bright)*2.5);
+    }
+  }
+  dctx.putImageData(id,0,0);
+  return dst;
+}
+
+async function removeBackgroundAPI(base64) {
+  const url = `${SUPABASE_URL}/functions/v1/${FUNCTION_NAME}`;
+  const res = await fetch(url, {
+    method:'POST', mode:'cors',
+    headers:{
+      'Content-Type':'application/json',
+      'Authorization':`Bearer ${SUPABASE_ANON}`,
+      'apikey': SUPABASE_ANON,
+    },
+    body: JSON.stringify({ image_base64: base64 }),
+  });
+  if(!res.ok){ const t=await res.text(); throw new Error(`API ${res.status}: ${t}`); }
+  const data = await res.json();
+  if(data.error) throw new Error(data.error);
+  return data.result_base64;
+}
+
+function _blobToCanvas(blob, maxPx) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      if (w > maxPx || h > maxPx) {
+        if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; }
+        else       { w = Math.round(w * maxPx / h); h = maxPx; }
+      }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(c);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('load_failed')); };
+    img.src = url;
+  });
+}
+
+async function decodeHeicWithLibheif(file, maxPx) {
+  const { HeifDecoder } = await import('https://esm.sh/libheif-js@1.18.2?exports=HeifDecoder');
+  const arrayBuffer = await file.arrayBuffer();
+  const uint8 = new Uint8Array(arrayBuffer);
+  return new Promise((resolve, reject) => {
+    try {
+      const decoder = new HeifDecoder();
+      const images = decoder.decode(uint8);
+      if (!images || images.length === 0) { reject(new Error('no images')); return; }
+      const image = images[0];
+      const origW = image.get_width();
+      const origH = image.get_height();
+      const pixBuf = new Uint8ClampedArray(origW * origH * 4);
+      image.display({ data: pixBuf, width: origW, height: origH }, (displayData) => {
+        if (!displayData) { reject(new Error('display failed')); return; }
+        try {
+          const tempC = document.createElement('canvas');
+          tempC.width = origW; tempC.height = origH;
+          tempC.getContext('2d').putImageData(
+            new ImageData(new Uint8ClampedArray(displayData.data.buffer), origW, origH), 0, 0
+          );
+          let w = origW, h = origH;
+          if (maxPx && Math.max(w, h) > maxPx) {
+            const s = maxPx / Math.max(w, h);
+            w = Math.round(w * s); h = Math.round(h * s);
+          }
+          const out = document.createElement('canvas');
+          out.width = w; out.height = h;
+          out.getContext('2d').drawImage(tempC, 0, 0, w, h);
+          resolve(out);
+        } catch(e) { reject(e); }
+      });
+    } catch(e) { reject(e); }
+  });
+}
+
+async function _imageDecoderToCanvas(file, maxPx) {
+  if (typeof ImageDecoder === 'undefined') throw new Error('ImageDecoder not supported');
+
+  const type = file.type || 'image/heic';
+  const mimeType = /heic|heif/i.test(type) ? 'image/heic' : type;
+
+  const supported = await ImageDecoder.isTypeSupported(mimeType);
+  if (!supported) throw new Error('HEIC not supported by this browser');
+
+  const decoder = new ImageDecoder({ data: file.stream(), type: mimeType });
+  const { image } = await decoder.decode({ frameIndex: 0 });
+
+  let w = image.displayWidth, h = image.displayHeight;
+  if (w > maxPx || h > maxPx) {
+    if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; }
+    else       { w = Math.round(w * maxPx / h); h = maxPx; }
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').drawImage(image, 0, 0, w, h);
+  image.close();
+  decoder.close();
+  return canvas;
+}
+
+async function _bitmapToCanvas(bitmap, maxPx) {
+  let w = bitmap.width, h = bitmap.height;
+  if (w > maxPx || h > maxPx) {
+    if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; }
+    else       { w = Math.round(w * maxPx / h); h = maxPx; }
+  }
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  c.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+  bitmap.close();
+  return c;
+}
+
+async function resizeImage(file, maxPx=1200) {
+  const setText = t => { const el=document.getElementById('loadingText'); if(el) el.textContent=t; };
+  const errs = [];
+
+  const isHeic = /\.(heic|heif)$/i.test(file.name || '') ||
+                 /heic|heif/i.test(file.type || '');
+
+  if (isHeic) {
+    setText('HEIC変換中... ⏳');
+
+    try {
+      const c = await decodeHeicWithLibheif(file, maxPx);
+      setText('変換成功！✅');
+      return c;
+    } catch(e) { errs.push('libheif:' + e.message); }
+
+    try {
+      if (typeof heic2any === 'undefined') throw new Error('not loaded');
+      const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.90 });
+      const blob = Array.isArray(result) ? result[0] : result;
+      setText('変換成功！✅');
+      return await _blobToCanvas(blob, maxPx);
+    } catch(e) { errs.push('heic2any:' + e.message); }
+
+    try {
+      const bm = await createImageBitmap(file);
+      setText('変換成功！✅');
+      return await _bitmapToCanvas(bm, maxPx);
+    } catch(e) { errs.push('bitmap:' + e.message); }
+
+    throw new Error(
+      '📱 HEICファイルの読み込みに失敗しました。\n\n' +
+      '【解決方法】\n' +
+      '① iPhoneの「設定」→「カメラ」→「フォーマット」\n' +
+      '　→「互換性優先」に変更して撮り直す\n\n' +
+      '② または Safari ブラウザからアップしてください\n' +
+      '　（Safari は HEIC をそのまま読めます）\n\n' +
+      '(詳細: ' + errs.join(', ') + ')'
+    );
+  }
+
+  try {
+    const bm = await createImageBitmap(file);
+    return await _bitmapToCanvas(bm, maxPx);
+  } catch(e) { errs.push('bitmap:'+e.message); }
+
+  try {
+    const bm = await createImageBitmap(new Blob([file], { type:'image/heic' }));
+    return await _bitmapToCanvas(bm, maxPx);
+  } catch(e) { errs.push('bitmap-heic:'+e.message); }
+
+  try {
+    const bm = await createImageBitmap(new Blob([file], { type:'image/heif' }));
+    return await _bitmapToCanvas(bm, maxPx);
+  } catch(e) { errs.push('bitmap-heif:'+e.message); }
+
+  try { return await _blobToCanvas(file, maxPx); } catch(e) { errs.push('img:'+e.message); }
+
+  setText('HEIC 変換中... ⏳');
+
+  try { return await _imageDecoderToCanvas(file, maxPx); }
+  catch(e) { errs.push('decoder:'+e.message); }
+
+  try {
+    if (typeof heic2any === 'undefined') throw new Error('not loaded');
+    const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 });
+    const blob   = Array.isArray(result) ? result[0] : result;
+    return await _blobToCanvas(blob, maxPx);
+  } catch(e) { errs.push('heic2any:'+e.message); }
+
+  if (isHeic) {
+    throw new Error('HEIC変換失敗: ' + errs.join(', '));
+  }
+
+  console.error('全手段失敗:', errs.join(' / '));
+  throw new Error(
+    '画像を読み込めませんでした: ' + (file.name || '不明') +
+    '\n詳細: ' + errs.join(', ')
+  );
+}
+
+function featherEdges(canvas, fadePx) {
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  const id = ctx.getImageData(0, 0, W, H);
+  const d = id.data;
+  const fp = Math.max(2, fadePx);
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const idx = (y * W + x) * 4;
+      if (d[idx + 3] === 0) continue;
+
+      const dx = Math.min(x, W - 1 - x);
+      const dy = Math.min(y, H - 1 - y);
+      const dist = Math.min(dx, dy);
+
+      if (dist < fp) {
+        const t = dist / fp;
+        const smooth = t * t * (3 - 2 * t);
+        d[idx + 3] = Math.floor(d[idx + 3] * smooth);
+      }
+    }
+  }
+  ctx.putImageData(id, 0, 0);
+}
+
+class Character {
+  constructor(transparentCanvas, name) {
+    this.name  = name;
+    this.parts = {};
+    this.ready = false;
+    this.imgW  = transparentCanvas.width;
+    this.imgH  = transparentCanvas.height;
+
+    this.t     = Math.random() * Math.PI * 2;
+    this.scale = 0.18 + Math.random() * 0.06;
+    this.animType     = 'wave';
+    this.animLifetime = (8 + Math.random() * 12) * 60;
+    this.animAge      = Math.floor(Math.random() * this.animLifetime * 0.7);
+    this.entrance = { active: true, age: 0, duration: 260 };
+    const spd   = 2.0 + Math.random() * 1.2;
+    const ang   = (Math.random() - 0.5) * 0.5;
+    this.vx  = -Math.cos(ang) * spd;
+    this.vy  = Math.sin(ang) * spd;
+    { const _SW = window.innerWidth, _SH = window.innerHeight;
+      let _xR = _SW - 30;
+      if (bgImage) {
+        const _bs = _SH / bgImage.height;
+        const _bw = bgImage.width * _bs;
+        const _bdx = (_SW - _bw) / 2;
+        _xR = _bdx + Math.round(_bw * 0.55);
+      }
+      this.x = _xR;
+    }
+    const _initSH = window.innerHeight;
+    const _initYMin = -_initSH * (0.60 - this.scale);
+    this.y   = _initYMin * Math.random();
+    this.dir = Math.sign(this.vx);
+    this.chatState = { active: false, text: '', age: 0, duration: 0, prevAnim: 'walk', cooldown: 0 };
+    this.leaving   = false;
+    this.leaveAge  = 0;
+    this.leaveDir  = 1;
+
+    this._cutParts(transparentCanvas);
+    this.ready = true;
+  }
+
+  startLeaving() {
+    this.leaving  = true;
+    this.leaveAge = 0;
+    this.leaveDir = this.x < window.innerWidth / 2 ? -1 : 1;
+    this.chatState.active  = false;
+    this.chatState.cooldown = 0;
+    this.vx = 0; this.vy = 0;
+  }
+
+  _cutParts(src) {
+    const W = src.width, H = src.height;
+    for(const [name, f] of Object.entries(FORMAT)){
+      const pw=Math.round(f.sw*W), ph=Math.round(f.sh*H);
+      if(pw<1||ph<1) continue;
+      const oc=document.createElement('canvas');
+      oc.width=pw; oc.height=ph;
+      oc.getContext('2d').drawImage(src, Math.round(f.sx*W), Math.round(f.sy*H), pw, ph, 0, 0, pw, ph);
+
+      function clipEllipse(src) {
+        const tmp = document.createElement('canvas');
+        tmp.width = src.width; tmp.height = src.height;
+        const tctx = tmp.getContext('2d');
+        tctx.beginPath();
+        tctx.ellipse(src.width/2, src.height/2, src.width/2 * 0.93, src.height/2 * 0.93, 0, 0, Math.PI*2);
+        tctx.clip();
+        tctx.drawImage(src, 0, 0);
+        src.getContext('2d').clearRect(0, 0, src.width, src.height);
+        src.getContext('2d').drawImage(tmp, 0, 0);
+      }
+      function clipRoundRect(src, r) {
+        const tmp = document.createElement('canvas');
+        tmp.width = src.width; tmp.height = src.height;
+        const tctx = tmp.getContext('2d');
+        tctx.beginPath();
+        tctx.roundRect(0, 0, src.width, src.height, r);
+        tctx.clip();
+        tctx.drawImage(src, 0, 0);
+        src.getContext('2d').clearRect(0, 0, src.width, src.height);
+        src.getContext('2d').drawImage(tmp, 0, 0);
+      }
+
+      if (name === 'head') {
+        clipEllipse(oc);
+      } else if (name === 'leftArm' || name === 'rightArm') {
+        clipRoundRect(oc, ph / 2);
+      } else if (name === 'leftLeg' || name === 'rightLeg') {
+        clipRoundRect(oc, pw / 2);
+      } else if (name === 'torso') {
+        clipRoundRect(oc, Math.min(pw,ph) * 0.18);
+      }
+
+      this.parts[name]={
+        canvas:oc, w:pw, h:ph,
+        pvWX:(f.sx+f.sw*f.pvx)*W,
+        pvWY:(f.sy+f.sh*f.pvy)*H,
+        ox:f.sx*W, oy:f.sy*H,
+        pvx: f.pvx, pvy: f.pvy,
+      };
+    }
+  }
+
+  update(dt) {
+    if (announcementState && announcementState.active) {
+      this.animType = 'wave';
+      this.t += dt * ANIMATIONS.wave.tSpeed;
+      return;
+    }
+
+    if (this.gatherTarget) {
+      const dx = this.gatherTarget.x - this.x;
+      const dy = this.gatherTarget.y - this.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 6) {
+        const speed = Math.min(7, dist * 0.07 + 1.5);
+        this.x += (dx / dist) * speed;
+        this.y += (dy / dist) * speed;
+        this.dir = dx > 0 ? 1 : -1;
+        this.animType = dist > 80 ? 'run' : 'walk';
+      } else {
+        this.x = this.gatherTarget.x;
+        this.y = this.gatherTarget.y;
+        this.animType = 'wave';
+      }
+      this.vx = 0; this.vy = 0;
+      this.t += dt * ANIMATIONS[this.animType].tSpeed;
+      { const _SH = window.innerHeight;
+        const _yMin = -_SH * (0.60 - this.scale);
+        const _yMax =  _SH * 0.10;
+        if (this.y < _yMin) this.y = _yMin;
+        if (this.y > _yMax) this.y = _yMax; }
+      { const _SW = window.innerWidth;
+        const _SH = window.innerHeight;
+        let _xL = 30, _xR = _SW - 30;
+        if (bgImage) {
+          const _bs = _SH / bgImage.height;
+          const _bw = bgImage.width * _bs;
+          const _bdx = (_SW - _bw) / 2;
+          _xL = _bdx + 70; _xR = _bdx + _bw - 280;
+        }
+        if (this.x < _xL) this.x = _xL;
+        if (this.x > _xR) this.x = _xR; }
+      return;
+    }
+
+    if (this.leaving) {
+      this.leaveAge++;
+      const SW = window.innerWidth;
+      this.animType = 'wave';
+      this.t += dt * ANIMATIONS.wave.tSpeed;
+      if (this.leaveAge < 65) {
+        this.dir = this.x < SW / 2 ? 1 : -1;
+      } else {
+        const prog  = Math.min(1, (this.leaveAge - 65) / 160);
+        const speed = 2.0 + prog * 4.5;
+        const dx = SW / 2 - this.x;
+        if (Math.abs(dx) > 6) {
+          this.x += Math.sign(dx) * speed * 0.5;
+          this.dir = Math.sign(dx);
+        }
+        this.y += speed * 1.1;
+      }
+      return;
+    }
+
+    const anim = ANIMATIONS[this.animType];
+    this.t += dt * anim.tSpeed;
+
+    if (this.entrance && this.entrance.active) {
+      this.entrance.age++;
+      this.animType = 'wave';
+      this.vx = 0; this.vy = 0;
+      if (this.entrance.age >= this.entrance.duration) {
+        this.entrance.active = false;
+        const movable = ANIM_KEYS.filter(k => k !== 'sleep');
+        this.animType = movable[Math.floor(Math.random() * movable.length)];
+        this.animAge  = 0;
+        const spd = 2.0 + Math.random() * 1.2;
+        const ang = (Math.random() - 0.5) * 1.0;
+        this.vx = Math.cos(ang) * spd * (Math.random() < 0.5 ? 1 : -1);
+        this.vy = Math.sin(ang) * spd;
+        this.dir = Math.sign(this.vx);
+        this.chatState.cooldown = 120;
+      }
+      return;
+    }
+
+    if (this.chatState.cooldown > 0) this.chatState.cooldown--;
+    if (this.chatState.active) {
+      this.chatState.age++;
+      if (this.chatState.age >= this.chatState.duration) {
+        this.chatState.active  = false;
+        this.chatState.cooldown = 100;
+        this.animType = this.chatState.prevAnim;
+        this.animAge  = 0;
+        const spd = 2.0 + Math.random() * 1.0;
+        const ang = (Math.random() - 0.5) * 0.8;
+        this.vx = Math.cos(ang) * spd * this.dir;
+        this.vy = Math.sin(ang) * spd;
+      }
+      return;
+    }
+
+    this.animAge++;
+    if (this.animAge > this.animLifetime) {
+      this.animType     = ANIM_KEYS[Math.floor(Math.random() * ANIM_KEYS.length)];
+      this.animAge      = 0;
+      this.animLifetime = (8 + Math.random() * 12) * 60;
+    }
+
+    this.x += this.vx * anim.moveMult;
+    this.y += this.vy * anim.moveMult;
+
+    const SW = window.innerWidth;
+    const SH = window.innerHeight;
+
+    let xLeft = 30, xRight = SW - 30;
+    if (bgImage) {
+      const bgScale = SH / bgImage.height;
+      const bgDw = bgImage.width * bgScale;
+      const bgDx = (SW - bgDw) / 2;
+      xLeft  = bgDx + 70;
+      xRight = bgDx + bgDw - 280;
+    }
+    if (this.x > xRight) { this.x = xRight; this.vx = -Math.abs(this.vx); }
+    if (this.x < xLeft)  { this.x = xLeft;  this.vx =  Math.abs(this.vx); }
+
+    const yMax =  SH * 0.10;
+    const yMin = -SH * (0.60 - this.scale);
+    if (this.y > yMax) { this.y = yMax; this.vy = -Math.abs(this.vy); }
+    if (this.y < yMin) { this.y = yMin; this.vy =  Math.abs(this.vy); }
+
+    if (Math.abs(this.vx) > 0.01) this.dir = Math.sign(this.vx);
+  }
+
+  draw(ctx, screenW, screenH, overlaysOnly = false) {
+    if(!this.ready||!this.parts.head) return;
+    const H=this.imgH, W=this.imgW;
+    const drawScale = (this.leaving && this.leaveAge > 65)
+      ? this.scale * (1 + (this.leaveAge - 65) / 120)
+      : this.scale;
+    const sc=(screenH*drawScale)/H;
+    const groundY=screenH*0.80;
+
+    const animState = ANIMATIONS[this.animType].fn(this.t, this.dir);
+    const bob = animState.bob || 0;
+    const isSleeping = !!(animState.bodyAngle);
+    const isWaving = this.animType === 'wave';
+    const ARM_CLAMP = isSleeping ? 88 * D : isWaving ? 90 * D : 38 * D;
+    const LEG_CLAMP = isSleeping ? 88 * D : 35 * D;
+    const clamp = (v, lim) => Math.max(-lim, Math.min(lim, v));
+    const angles = {
+      head:     animState.head     || 0,
+      torso:    0,
+      leftArm:  clamp(animState.leftArm  || 0, ARM_CLAMP),
+      rightArm: clamp(animState.rightArm || 0, ARM_CLAMP),
+      leftLeg:  clamp(animState.leftLeg  || 0, LEG_CLAMP),
+      rightLeg: clamp(animState.rightLeg || 0, LEG_CLAMP),
+    };
+
+    const drawDir = (this.animType === 'sleep') ? 1 : this.dir;
+    const bodyAngle = animState.bodyAngle || 0;
+
+    if (!overlaysOnly) {
+    ctx.save();
+    ctx.translate(this.x, groundY + this.y - bob);
+    if(drawDir===-1) ctx.scale(-1,1);
+
+    if (bodyAngle !== 0) {
+      const cy = (-H * 0.5) * sc;
+      ctx.translate(0, cy);
+      ctx.rotate(bodyAngle);
+      ctx.translate(0, -cy);
+    }
+
+    const self = this;
+    function drawPart(pn) {
+      const part = self.parts[pn];
+      if (!part) return;
+      const ang = angles[pn] || 0;
+      const pvX = (part.pvWX - W*0.5)*sc;
+      const pvY = (part.pvWY - H)*sc;
+      const ox  = (part.ox - W*0.5)*sc;
+      const oy  = (part.oy - H)*sc;
+      const pw  = part.w * sc;
+      const ph  = part.h * sc;
+
+      ctx.save();
+      ctx.translate(pvX, pvY);
+      ctx.rotate(ang);
+
+      if (pn === 'leftArm' || pn === 'rightArm' || pn === 'leftLeg' || pn === 'rightLeg') {
+        ctx.save();
+        ctx.filter = `blur(${Math.max(1, sc * 4).toFixed(1)}px)`;
+        ctx.drawImage(part.canvas, ox-pvX, oy-pvY, pw, ph);
+        ctx.restore();
+      }
+
+      ctx.drawImage(part.canvas, ox-pvX, oy-pvY, pw, ph);
+      ctx.restore();
+    }
+
+    const leftLegAng = angles.leftLeg;
+    const legFront = leftLegAng <= 0 ? 'leftLeg' : 'rightLeg';
+    const legBack  = leftLegAng <= 0 ? 'rightLeg' : 'leftLeg';
+    const dynamicOrder = [legBack, legFront, 'rightArm', 'leftArm', 'torso', 'head'];
+    for(const pn of dynamicOrder){ drawPart(pn); }
+
+    ctx.restore();
+    } // end !overlaysOnly
+
+    if (!overlaysOnly) return;
+
+    {
+      const rawLabel = this.name || '???';
+      const label = rawLabel.length>10 ? rawLabel.slice(0,10)+'…' : rawLabel;
+      const footY = groundY + this.y - bob;
+      ctx.save();
+      ctx.font = 'bold 16px sans-serif';
+      const pad = 14, th = 28;
+      const tw  = ctx.measureText(label).width + pad * 2;
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.beginPath(); ctx.roundRect(this.x - tw/2, footY + 5, tw, th, 12); ctx.fill();
+      ctx.fillStyle = '#333';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(label, this.x, footY + 5 + th/2);
+      ctx.restore();
+    }
+
+    if (animState.zzz) {
+      const hImgX = (FORMAT.head.sx + FORMAT.head.sw * 0.5) * W;
+      const hImgY = FORMAT.head.sy * H;
+      let hlx = (hImgX - W * 0.5) * sc;
+      let hly = (hImgY - H) * sc;
+      if (drawDir === -1) hlx = -hlx;
+      if (bodyAngle !== 0) {
+        const cy = (-H * 0.5) * sc;
+        const cosB = Math.cos(bodyAngle), sinB = Math.sin(bodyAngle);
+        const rx = hlx, ry = hly - cy;
+        hlx = rx * cosB - ry * sinB;
+        hly = rx * sinB + ry * cosB + cy;
+      }
+      const headSX = this.x + hlx;
+      const headSY = groundY + this.y - bob + hly;
+
+      const zBase = Math.max(18, sc * H * 0.18);
+      const zDefs = [
+        { scale: 0.52, phase: 0.0,  dx: 0.3, dy: 0.5 },
+        { scale: 0.75, phase: 1.1,  dx: 1.1, dy: 1.3 },
+        { scale: 1.0,  phase: 2.1,  dx: 2.1, dy: 2.3 },
+      ];
+      zDefs.forEach(({ scale, phase, dx, dy }) => {
+        const zSize  = Math.round(zBase * scale);
+        const p      = (this.t * 0.45 + phase) % (Math.PI * 2);
+        const alpha  = Math.max(0, Math.sin(p)) * 0.92;
+        const floatY = -Math.sin(p) * zBase * 0.7;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle   = '#3377cc';
+        ctx.font        = `bold ${zSize}px sans-serif`;
+        ctx.textAlign   = 'left';
+        ctx.fillText('Z',
+          headSX + zBase * dx,
+          headSY - zBase * dy + floatY
+        );
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      });
+    }
+
+    if (this.entrance && this.entrance.active) {
+      const { age, duration } = this.entrance;
+      const fadeIn  = Math.min(1, age / 20);
+      const fadeOut = Math.min(1, (duration - age) / 25);
+      const bAlpha  = Math.min(fadeIn, fadeOut);
+      if (bAlpha > 0) {
+        const hTopY = groundY + this.y - bob + (FORMAT.head.sy * H - H) * sc;
+        const line1 = 'はじめまして！';
+        const line2 = `${this.name}です！よろしくね！`;
+        ctx.save();
+        ctx.globalAlpha = bAlpha;
+
+        const fontSize = 24;
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        const w1 = ctx.measureText(line1).width;
+        const w2 = ctx.measureText(line2).width;
+        const maxW = Math.max(w1, w2);
+        const padX = 20, padY = 14, lineGap = 8;
+        const tw = maxW + padX * 2;
+        const th = fontSize * 2 + lineGap + padY * 2;
+        const bx = Math.max(8, Math.min(this.x - tw / 2, ctx.canvas.width - tw - 8));
+        const by = hTopY - th - 28;
+
+        ctx.fillStyle   = 'rgba(255,240,250,0.97)';
+        ctx.strokeStyle = '#ff88bb';
+        ctx.lineWidth   = 3;
+        ctx.beginPath(); ctx.roundRect(bx, by, tw, th, 16); ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255,240,250,0.97)';
+        ctx.beginPath();
+        ctx.moveTo(this.x - 10, by + th - 1);
+        ctx.lineTo(this.x,      by + th + 14);
+        ctx.lineTo(this.x + 10, by + th - 1);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#ff88bb';
+        ctx.beginPath();
+        ctx.moveTo(this.x - 10, by + th);
+        ctx.lineTo(this.x,      by + th + 14);
+        ctx.lineTo(this.x + 10, by + th);
+        ctx.stroke();
+
+        ctx.fillStyle = '#cc2266';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(line1, bx + tw / 2, by + padY + fontSize / 2);
+        ctx.fillText(line2, bx + tw / 2, by + padY + fontSize + lineGap + fontSize / 2);
+        ctx.textBaseline = 'alphabetic';
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    }
+
+    if (this.leaving) {
+      const bAlpha = Math.min(1, this.leaveAge / 10);
+      if (bAlpha > 0) {
+        const hTopY = groundY + this.y - bob + (FORMAT.head.sy * H - H) * sc;
+        const text  = '帰るね〜！';
+        ctx.save();
+        ctx.globalAlpha = bAlpha;
+        ctx.font = 'bold 22px sans-serif';
+        const pad = 16, th = 40;
+        const tw  = ctx.measureText(text).width + pad * 2;
+        const bx = Math.max(window._bgXL||8, Math.min((window._bgXR||9999) - tw, this.x - tw / 2));
+        const by  = hTopY - th - 20;
+        ctx.fillStyle   = 'rgba(255,245,200,0.97)';
+        ctx.strokeStyle = '#ddaa33';
+        ctx.lineWidth   = 2.5;
+        ctx.beginPath(); ctx.roundRect(bx, by, tw, th, 12); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,245,200,0.97)';
+        ctx.beginPath();
+        ctx.moveTo(this.x-9, by+th-1); ctx.lineTo(this.x, by+th+12); ctx.lineTo(this.x+9, by+th-1);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#ddaa33';
+        ctx.beginPath();
+        ctx.moveTo(this.x-9, by+th); ctx.lineTo(this.x, by+th+12); ctx.lineTo(this.x+9, by+th);
+        ctx.stroke();
+        ctx.fillStyle = '#885500';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(text, this.x, by + th/2);
+        ctx.textBaseline = 'alphabetic';
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    }
+
+    if (this.chatState.active) {
+      const { text, age, duration } = this.chatState;
+      const fadeIn  = Math.min(1, age / 12);
+      const fadeOut = Math.min(1, (duration - age) / 12);
+      const bAlpha  = Math.min(fadeIn, fadeOut);
+      if (bAlpha > 0) {
+        const hTopY = groundY + this.y - bob + (FORMAT.head.sy * H - H) * sc;
+        const hCX   = this.x;
+
+        ctx.save();
+        ctx.globalAlpha = bAlpha;
+        ctx.font = 'bold 20px sans-serif';
+        const pad = 16, th = 40;
+        const tw  = ctx.measureText(text).width + pad * 2;
+        let _bxL = 8, _bxR = screenW - 8;
+        if (bgImage) {
+          const _bs2 = screenH / bgImage.height;
+          const _bw2 = bgImage.width * _bs2;
+          _bxL = (screenW - _bw2) / 2 + 8;
+          _bxR = _bxL + _bw2 - 8;
+        }
+        const bx  = Math.max(_bxL, Math.min(_bxR - tw, hCX - tw / 2));
+        const by  = hTopY - th - 20;
+
+        ctx.fillStyle   = 'rgba(255,255,255,0.95)';
+        ctx.strokeStyle = '#88aadd';
+        ctx.lineWidth   = 2.5;
+        ctx.beginPath();
+        ctx.roundRect(bx, by, tw, th, 12);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+        ctx.beginPath();
+        ctx.moveTo(hCX - 9, by + th - 1);
+        ctx.lineTo(hCX,     by + th + 12);
+        ctx.lineTo(hCX + 9, by + th - 1);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#88aadd';
+        ctx.beginPath();
+        ctx.moveTo(hCX - 9, by + th);
+        ctx.lineTo(hCX,     by + th + 12);
+        ctx.lineTo(hCX + 9, by + th);
+        ctx.stroke();
+
+        ctx.fillStyle  = '#223366';
+        ctx.textAlign  = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, hCX, by + th / 2);
+        ctx.textBaseline = 'alphabetic';
+
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    }
+  }
+}
+
+let bgImage = null;
+
+(function autoLoadBg() {
+  const candidates = ['background.png', 'background.jpg', 'bg.jpg', 'bg.jpeg', 'bg.png', 'bg.webp'];
+  let idx = 0;
+  function tryNext() {
+    if (idx >= candidates.length) return;
+    const img = new Image();
+    img.onload = () => { bgImage = img; drawBackground(); };
+    img.onerror = () => { idx++; tryNext(); };
+    img.src = candidates[idx++];
+  }
+  tryNext();
+})();
+
+const characters=[];
+const charCanvas=document.getElementById('charCanvas');
+const charCtx=charCanvas.getContext('2d');
+
+function resizeCanvases(){
+  const W=window.innerWidth, H=window.innerHeight;
+  document.getElementById('bgCanvas').width=W;
+  document.getElementById('bgCanvas').height=H;
+  charCanvas.width=W; charCanvas.height=H;
+  drawBackground();
+}
+
+let lastTime=0;
+function loop(ts){
+  try {
+  const dt=Math.min((ts-lastTime)/1000,0.05);
+  lastTime=ts;
+
+  for(const c of characters){ c.update(dt); }
+
+  const SH = charCanvas.height;
+  for(let i=0; i<characters.length; i++){
+    for(let j=i+1; j<characters.length; j++){
+      const a = characters[i], b = characters[j];
+      const ra = SH * a.scale * 0.28;
+      const rb = SH * b.scale * 0.28;
+      const minDist = ra + rb;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if(dist < minDist && dist > 1){
+        const nx = dx / dist, ny = dy / dist;
+        const push = Math.min((minDist - dist) * 0.4, 4);
+        a.x -= nx * push; a.y -= ny * push;
+        b.x += nx * push; b.y += ny * push;
+        const _aYMin = -SH * (0.60 - a.scale);
+        const _bYMin = -SH * (0.60 - b.scale);
+        if (a.y < _aYMin) { a.y = _aYMin; a.vy = Math.abs(a.vy); }
+        if (b.y < _bYMin) { b.y = _bYMin; b.vy = Math.abs(b.vy); }
+        const aSleep = a.animType === 'sleep';
+        const bSleep = b.animType === 'sleep';
+        const relVn = (a.vx - b.vx)*nx + (a.vy - b.vy)*ny;
+        if(relVn > 0){
+          const aCanChat = !aSleep && !a.chatState.active && a.chatState.cooldown===0;
+          const bCanChat = !bSleep && !b.chatState.active && b.chatState.cooldown===0;
+          if(aCanChat && bCanChat &&
+             MOVING_ANIMS.has(a.animType) && MOVING_ANIMS.has(b.animType) &&
+             Math.random() < 0.65) {
+            const idxA = Math.floor(Math.random() * CHAT_PHRASES.length);
+            let idxB = Math.floor(Math.random() * (CHAT_PHRASES.length - 1));
+            if(idxB >= idxA) idxB++;
+            const dur = 150 + Math.floor(Math.random() * 70);
+            a.chatState = { active:true, text:CHAT_PHRASES[idxA], age:0, duration:dur, prevAnim:a.animType, cooldown:0 };
+            b.chatState = { active:true, text:CHAT_PHRASES[idxB], age:0, duration:dur, prevAnim:b.animType, cooldown:0 };
+            if(a.x < b.x){ a.dir=1; b.dir=-1; } else { a.dir=-1; b.dir=1; }
+            a.animType='sway'; a.animAge=0; a.vx=0; a.vy=0;
+            b.animType='sway'; b.animAge=0; b.vx=0; b.vy=0;
+          } else {
+            const vna = a.vx*nx + a.vy*ny;
+            const vnb = b.vx*nx + b.vy*ny;
+            if(!aSleep && !a.chatState.active){ a.vx += (vnb-vna)*nx; a.vy += (vnb-vna)*ny; }
+            if(!bSleep && !b.chatState.active){ b.vx += (vna-vnb)*nx; b.vy += (vna-vnb)*ny; }
+            if(!aSleep && !a.chatState.active && Math.abs(a.vx)>0.01) a.dir = Math.sign(a.vx);
+            if(!bSleep && !b.chatState.active && Math.abs(b.vx)>0.01) b.dir = Math.sign(b.vx);
+          }
+        }
+      }
+    }
+  }
+
+  const gY = charCanvas.height * 0.80;
+  for(let i=characters.length-1; i>=0; i--){
+    const c=characters[i];
+    if(c.leaving && (gY + c.y) > charCanvas.height + 80){
+      characters.splice(i,1);
+    }
+  }
+
+  charCtx.clearRect(0,0,charCanvas.width,charCanvas.height);
+  window._bgXL = bgImage ? (charCanvas.width - bgImage.width * (charCanvas.height / bgImage.height)) / 2 + 8 : 8;
+  window._bgXR = bgImage ? window._bgXL - 8 + bgImage.width * (charCanvas.height / bgImage.height) - 8 : charCanvas.width - 8;
+  for(const c of characters){ c.draw(charCtx,charCanvas.width,charCanvas.height,false); }
+  for(const c of characters){ c.draw(charCtx,charCanvas.width,charCanvas.height,true); }
+
+  if (announcementState && announcementState.active) {
+    announcementState.age++;
+    const age = announcementState.age;
+    const fadeIn  = Math.min(1, age / 20);
+    const fadeOut = age > 120 ? Math.max(0, 1 - (age - 120) / 20) : 1;
+    const bAlpha  = fadeIn * fadeOut;
+
+    if (bAlpha > 0) {
+      const CW = charCanvas.width, CH = charCanvas.height;
+      const text = '動画がはじまるよーー！';
+      charCtx.save();
+      charCtx.globalAlpha = bAlpha;
+
+      const fontSize = Math.max(28, Math.round(CW * 0.045));
+      charCtx.font = `bold ${fontSize}px sans-serif`;
+      const pad = Math.round(fontSize * 0.75);
+      const th  = Math.round(fontSize * 1.8);
+      const tw  = charCtx.measureText(text).width + pad * 2;
+      const bx  = (CW - tw) / 2;
+      const by  = CH * 0.32;
+      const tailX = CW / 2;
+
+      charCtx.fillStyle   = 'rgba(255,248,180,0.97)';
+      charCtx.strokeStyle = '#dd9900';
+      charCtx.lineWidth   = 3.5;
+      charCtx.beginPath();
+      charCtx.roundRect(bx, by, tw, th, Math.round(th * 0.3));
+      charCtx.fill();
+      charCtx.stroke();
+
+      const tailW = Math.round(th * 0.28);
+      const tailH = Math.round(th * 0.32);
+      charCtx.fillStyle = 'rgba(255,248,180,0.97)';
+      charCtx.beginPath();
+      charCtx.moveTo(tailX - tailW, by + th - 1);
+      charCtx.lineTo(tailX,          by + th + tailH);
+      charCtx.lineTo(tailX + tailW, by + th - 1);
+      charCtx.closePath();
+      charCtx.fill();
+      charCtx.strokeStyle = '#dd9900';
+      charCtx.lineWidth   = 3.5;
+      charCtx.beginPath();
+      charCtx.moveTo(tailX - tailW, by + th);
+      charCtx.lineTo(tailX,          by + th + tailH);
+      charCtx.lineTo(tailX + tailW, by + th);
+      charCtx.stroke();
+
+      charCtx.fillStyle    = '#663300';
+      charCtx.textAlign    = 'center';
+      charCtx.textBaseline = 'middle';
+      charCtx.fillText(text, CW / 2, by + th / 2);
+      charCtx.textBaseline = 'alphabetic';
+      charCtx.globalAlpha  = 1;
+      charCtx.restore();
+    }
+  }
+
+  } catch(e) {
+    console.warn('loop error:', e);
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+const loadedCharacterNames = new Set();
+  let isInitialLoad = true;
+  const INITIAL_LOAD_MAX = 5;
+
+function showInfoToast(msg, type = 'info') {
+  const colors = {
+    success: { bg: 'rgba(46,125,50,0.92)', border: '#81c784' },
+    error:   { bg: 'rgba(183,28,28,0.92)', border: '#e57373' },
+    info:    { bg: 'rgba(21,101,192,0.92)', border: '#64b5f6' },
+  };
+  const c = colors[type] || colors.info;
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    position:fixed; bottom:24px; right:24px;
+    background:${c.bg}; color:#fff;
+    border:1px solid ${c.border};
+    padding:14px 18px; border-radius:12px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.4);
+    z-index:9998; max-width:300px;
+    font-size:14px; line-height:1.6; white-space:pre-line;
+    animation:fadeInUp 0.3s ease;
+  `;
+  toast.textContent = msg;
+  if (!document.getElementById('toastStyle')) {
+    const s = document.createElement('style');
+    s.id = 'toastStyle';
+    s.textContent = `@keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}`;
+    document.head.appendChild(s);
+  }
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.4s'; setTimeout(()=>toast.remove(), 400); }, 4000);
+}
+
+function showErrorToast(msg) {
+  let toast = document.getElementById('errorToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'errorToast';
+    toast.style.cssText = `
+      position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+      background:rgba(255,255,255,0.97); color:#333; padding:24px 28px;
+      border-radius:16px; box-shadow:0 8px 32px rgba(0,0,0,0.3);
+      z-index:9999; max-width:360px; width:90%; text-align:left;
+      font-size:15px; line-height:1.7; white-space:pre-line;
+    `;
+    document.body.appendChild(toast);
+  }
+  const closeBtn = `<button onclick="document.getElementById('errorToast').remove()" style="
+    display:block; margin:16px auto 0; padding:10px 32px;
+    background:#4a90e2; color:#fff; border:none; border-radius:8px;
+    font-size:15px; cursor:pointer; font-weight:bold;">OK</button>`;
+  toast.innerHTML = msg.replace(/\n/g, '<br>') + closeBtn;
+}
+
+async function processCharacterFile(file, silent = false) {
+  const rawName = file.name.replace(/\.[^.]+$/, '');
+  let name = rawName;
+  try {
+    const lastUnder = rawName.lastIndexOf('_');
+    if (lastUnder > 0) {
+      const encoded = rawName.substring(0, lastUnder);
+      const b64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+      const b64padded = b64 + '==='.slice(0, (4 - b64.length % 4) % 4);
+      const atobResult1 = atob(b64padded);
+      if (/^[\x20-\x7E]+$/.test(atobResult1)) {
+        const decoded = decodeURIComponent(atobResult1);
+        if (decoded) name = decoded;
+      }
+    }
+  } catch(e) {
+    name = rawName;
+  }
+  const loading    = document.getElementById('loadingOverlay');
+  const loadingText= document.getElementById('loadingText');
+  const debugInfo  = document.getElementById('debugInfo');
+
+  if (!silent) loading.classList.add('show');
+
+  try {
+    if (!silent) loadingText.textContent = `${name} を読み込み中...`;
+    const imgCanvas = await resizeImage(file, 1400);
+
+    if (!silent) loadingText.textContent = `マーカーを検出中...🔍`;
+    const cropResult = detectAndCrop(imgCanvas);
+
+    if (!cropResult) {
+      if (!silent) {
+        alert(`❌ ${name}\n四隅のマーカーを認識できませんでした。\n四隅の■が全部写るように撮り直してください。`);
+      } else {
+        showInfoToast(`❌ マーカー未検出\n「${name}」の四隅が認識できませんでした`, 'error');
+        console.warn(`マーカー未検出: ${name}`);
+        loadedCharacterNames.add(file.name);
+      }
+      return;
+    }
+
+    if (!silent) loadingText.textContent = `テンプレート検出！パーツを切り出し中... ✂️`;
+    const transparentCanvas = cropResult.canvas;
+    if (!silent) {
+      debugInfo.textContent = '✅ テンプレート検出';
+      debugInfo.style.display = 'block';
+      setTimeout(() => debugInfo.style.display = 'none', 3000);
+    }
+
+    characters.push(new Character(transparentCanvas, name));
+    loadedCharacterNames.add(file.name);
+    if (silent) showInfoToast(`🎉 ${name} が登場！`, 'success');
+
+    if (characters.length > 10) {
+      const oldest = characters.find(c => !c.leaving);
+      if (oldest) oldest.startLeaving();
+    }
+    while (characters.length > 12) {
+      const leavingIdx = characters.findIndex(c => c.leaving);
+      if (leavingIdx >= 0) characters.splice(leavingIdx, 1);
+      else characters.shift();
+    }
+  } catch(err) {
+    console.error('processCharacterFile:', err);
+    const msg = (err instanceof Error) ? err.message : String(err);
+    if (!silent) {
+      showErrorToast(`${name} の処理でエラー：\n${msg}`);
+    } else {
+      showInfoToast(`⚠️ 読み込みエラー\n「${name}」: ${msg}`, 'error');
+    }
+  } finally {
+    if (!silent) loading.classList.remove('show');
+  }
+}
+
+const SUPABASE_KEY    = 'sb_publishable_X82W_W9Ib7C6Xua27N1Z0A_vw1FKztj';
+const SUPABASE_BUCKET = 'characters';
+
+const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const ROOM_ID = crypto.randomUUID().replace(/-/g,'').substring(0, 8).toUpperCase();
+document.getElementById('roomIdDisplay').textContent = ROOM_ID;
+
+()();
+
+document.getElementById('qrCloseBtn').addEventListener('click', () => {
+});
+});
+
+(function startCharacterWatcher() {
+  const IMAGE_EXTS = new Set(['jpg','jpeg','png','webp','heic','heif']);
+
+  async function loadAndDisplayFile(filePath) {
+    if (loadedCharacterNames.has(filePath)) return;
+    loadedCharacterNames.add(filePath);
+
+    const fileName = filePath.split('/').pop();
+    try {
+      const { data: urlData } = sbClient.storage
+        .from(SUPABASE_BUCKET).getPublicUrl(filePath);
+
+      showInfoToast(`📥 ${fileName}`, 'info');
+      const imgRes = await fetch(urlData.publicUrl + '?t=' + Date.now());
+      if (!imgRes.ok) return;
+      const blob = await imgRes.blob();
+      const file = new File([blob], fileName, { type: blob.type });
+
+      await addProcessedCharacter(file, filePath);
+      console.log(`✅ 受信・表示: ${filePath}`);
+    } catch(e) {
+      showInfoToast(`⚠️ 読み込みエラー: ${fileName}`, 'error');
+      console.warn('loadAndDisplayFile error:', e);
+    }
+  }
+
+  async function checkExistingFiles() {
+    try {
+      const { data: files } = await sbClient.storage
+        .from(SUPABASE_BUCKET)
+        .list(ROOM_ID, { sortBy: { column: 'created_at', order: 'asc' } });
+
+      if (!files || files.length === 0) return;
+      const imageFiles = files.filter(f =>
+        IMAGE_EXTS.has(f.name.split('.').pop().toLowerCase())
+      );
+      for (const f of imageFiles) {
+        await loadAndDisplayFile(`${ROOM_ID}/${f.name}`);
+      }
+    } catch(e) {
+      console.warn('checkExistingFiles error:', e);
+    }
+  }
+
+  sbClient.channel(`enomachi-${ROOM_ID}`)
+    .on('broadcast', { event: 'new_character' }, async (payload) => {
+      const { filePath } = payload.payload;
+      console.log('🎯 broadcast received:', filePath);
+      if (filePath) await loadAndDisplayFile(filePath);
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log(`✅ Realtime接続 room=${ROOM_ID}`);
+        checkExistingFiles();
+      }
+    });
+})();
+
+async function addProcessedCharacter(file, filePath = null) {
+  const rawName = file.name.replace(/\.[^.]+$/, '');
+  let name = rawName;
+  try {
+    const lastUnder = rawName.lastIndexOf('_');
+    if (lastUnder > 0) {
+      const b64 = rawName.substring(0, lastUnder).replace(/-/g, '+').replace(/_/g, '/');
+      const b64padded = b64 + '==='.slice(0, (4 - b64.length % 4) % 4);
+      const atobResult2 = atob(b64padded);
+      if (/^[\x20-\x7E]+$/.test(atobResult2)) {
+        const decoded = decodeURIComponent(atobResult2);
+        if (decoded) name = decoded;
+      }
+    }
+  } catch(e) { name = rawName; }
+
+  try {
+    const imgCanvas = await new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = img.width; c.height = img.height;
+        c.getContext('2d').drawImage(img, 0, 0);
+        res(c);
+      };
+      img.onerror = rej;
+      img.src = URL.createObjectURL(file);
+    });
+
+    characters.push(new Character(imgCanvas, name));
+    showInfoToast(`🎉 ${name} が登場！`, 'success');
+
+    if (characters.length > 10) {
+      const oldest = characters.find(c => !c.leaving);
+      if (oldest) oldest.startLeaving();
+    }
+    while (characters.length > 12) {
+      const idx = characters.findIndex(c => c.leaving);
+      if (idx >= 0) characters.splice(idx, 1); else characters.shift();
+    }
+
+    if (filePath) {
+      sbClient.storage.from(SUPABASE_BUCKET).remove([filePath])
+        .then(() => console.log(`🗑️ 削除: ${filePath}`))
+        .catch(e => console.warn('削除失敗:', e));
+    }
+  } catch(err) {
+    showInfoToast(`⚠️ PNG読み込みエラー: ${name}\n${err.message}`, 'error');
+    console.warn('addProcessedCharacter error:', err);
+  }
+}
+
+document.getElementById('addBtn').onclick = () => document.getElementById('fileInput').click();
+
+
+document.getElementById('fileInput').onchange = async(e) => {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+  for (const file of files) {
+    await processCharacterFile(file, false);
+  }
+  e.target.value = '';
+};
+
+function shadeColor(c,p){
+  const n=parseInt(c.replace('#',''),16);
+  return `rgb(${Math.min(255,Math.max(0,(n>>16)+p))},${Math.min(255,Math.max(0,((n>>8)&255)+p))},${Math.min(255,Math.max(0,(n&255)+p))})`;
+}
+
+function drawBackground(){
+  const canvas=document.getElementById('bgCanvas');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+
+  if (bgImage) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    const scale = H / bgImage.height;
+    const dw = bgImage.width * scale;
+    const dh = H;
+    const dx = (W - dw) / 2;
+    const dy = 0;
+    ctx.drawImage(bgImage, dx, dy, dw, dh);
+    return;
+  }
+
+  const sky=ctx.createLinearGradient(0,0,0,H*0.78);
+  sky.addColorStop(0,'#87CEEB'); sky.addColorStop(0.7,'#C8E8FF'); sky.addColorStop(1,'#FFE4B5');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H*0.78);
+
+  [[0.10,0.07,120,38],[0.38,0.04,95,30],[0.62,0.11,145,44],[0.87,0.06,105,32]].forEach(([rx,ry,rw,rh])=>{
+    ctx.fillStyle='rgba(255,255,255,0.82)';
+    [[0,0,0.6,0.5],[-.2,.1,.4,.4],[.25,.05,.38,.38]].forEach(([ox,oy,rx2,ry2])=>{
+      ctx.beginPath(); ctx.ellipse(rx*W+ox*rw,ry*H+oy*rh,rw*rx2,rh*ry2,0,0,Math.PI*2); ctx.fill();
+    });
+  });
+
+  const ground=ctx.createLinearGradient(0,H*0.78,0,H);
+  ground.addColorStop(0,'#7EC850'); ground.addColorStop(1,'#5A9E30');
+  ctx.fillStyle=ground; ctx.fillRect(0,H*0.78,W,H*0.22);
+
+  ctx.fillStyle='#888'; ctx.fillRect(0,H*0.80,W,H*0.20);
+  ctx.fillStyle='#999'; ctx.fillRect(0,H*0.80,W,4);
+  ctx.fillStyle='rgba(255,255,255,0.55)';
+  for(let x=0;x<W;x+=80) ctx.fillRect(x,H*0.895,50,5);
+
+  const buildings=[
+    {x:.01,w:.10,h:.62,c:'#E8C5A0',r:'#C0392B'},{x:.12,w:.08,h:.78,c:'#B8D4E8',r:'#2980B9'},
+    {x:.21,w:.12,h:.52,c:'#F5DEB3',r:'#E67E22'},{x:.34,w:.09,h:.68,c:'#D5E8D4',r:'#27AE60'},
+    {x:.44,w:.12,h:.82,c:'#E8D5E8',r:'#8E44AD'},{x:.57,w:.09,h:.58,c:'#FFE4E1',r:'#E74C3C'},
+    {x:.67,w:.12,h:.72,c:'#E0F0FF',r:'#2C3E50'},{x:.80,w:.10,h:.62,c:'#FFEAA7',r:'#F39C12'},
+    {x:.91,w:.08,h:.75,c:'#DFE6E9',r:'#636E72'},
+  ];
+  buildings.forEach(b=>{
+    const bx=b.x*W,bw=b.w*W,bh=b.h*(H*0.80),by=H*0.80-bh;
+    const bg=ctx.createLinearGradient(bx,by,bx+bw,by);
+    bg.addColorStop(0,b.c); bg.addColorStop(1,shadeColor(b.c,-20));
+    ctx.fillStyle=bg; ctx.fillRect(bx,by,bw,bh);
+    ctx.fillStyle=b.r;
+    ctx.beginPath(); ctx.moveTo(bx-6,by); ctx.lineTo(bx+bw/2,by-26); ctx.lineTo(bx+bw+6,by); ctx.closePath(); ctx.fill();
+    const cols=Math.max(1,Math.floor(bw/28)),rows=Math.max(1,Math.floor(bh/42));
+    for(let r=0;r<rows-1;r++) for(let c=0;c<cols;c++){
+      const wx=bx+(bw/(cols+1))*(c+1)-7,wy=by+(bh/(rows+1))*(r+1)-7;
+      ctx.fillStyle='#87CEEB'; ctx.fillRect(wx,wy,13,13);
+      ctx.strokeStyle='rgba(0,0,0,0.1)'; ctx.strokeRect(wx,wy,13,13);
+    }
+    const dw=Math.min(bw*0.25,20),dh=dw*1.6;
+    ctx.fillStyle=shadeColor(b.c,-35); ctx.fillRect(bx+(bw-dw)/2,H*0.80-dh,dw,dh);
+  });
+
+  [0.07,0.29,0.52,0.74,0.92].forEach(px=>{
+    const lx=px*W,ly=H*0.80;
+    ctx.strokeStyle='#555'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx,ly-H*0.18); ctx.lineTo(lx+18,ly-H*0.18); ctx.stroke();
+    ctx.fillStyle='#FFE566'; ctx.beginPath(); ctx.arc(lx+18,ly-H*0.18,7,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,235,100,0.15)'; ctx.beginPath(); ctx.arc(lx+18,ly-H*0.18,18,0,Math.PI*2); ctx.fill();
+  });
+
+  [0.18,0.41,0.63,0.84].forEach(px=>{
+    const tx=px*W,ty=H*0.80;
+    ctx.fillStyle='#8B6914'; ctx.fillRect(tx-4,ty-H*0.12,8,H*0.12);
+    [{x:0,r:20,c:'#4CAF50'},{x:-7,r:14,c:'#66BB6A'},{x:7,r:13,c:'#388E3C'}].forEach(t=>{
+      ctx.fillStyle=t.c; ctx.beginPath(); ctx.arc(tx+t.x,ty-H*0.12-(t.r==20?0:8),t.r,0,Math.PI*2); ctx.fill();
+    });
+  });
+}
+
+window.addEventListener('resize',resizeCanvases);
+resizeCanvases();
+</script>
+</body>
+</html>
