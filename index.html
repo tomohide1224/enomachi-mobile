@@ -2,10 +2,8 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
-  <title>えのまち - モバイル</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>えのまち v3 - テンプレート対応</title>
   <!-- heic2any（HEIC変換フォールバック用） -->
   <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
   <!-- Supabase JS クライアント -->
@@ -13,7 +11,7 @@
   <!-- QRコード生成 -->
   <!-- QRコード：外部APIで生成（ライブラリ不要） -->
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; 
+    * { margin:0; padding:0; box-sizing:border-box; }
     body { background:#000; overflow:hidden; }
     #screen { width:100vw; height:100vh; position:relative; }
     #bgCanvas  { position:absolute; inset:0; width:100%; height:100%; }
@@ -31,11 +29,26 @@
     #fileInput { display:none; }
 
     /* ===== 設定ボタン＆パネル ===== */
-    
+    #settingsBtn {
+      position:absolute; bottom:20px; left:20px;
+      background:rgba(255,255,255,0.92); border:none; border-radius:50px;
+      padding:12px 20px; font-size:16px; font-weight:bold; color:#555;
+      cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.2); z-index:100;
+      transition:transform 0.15s; display:flex; align-items:center; gap:8px;
+    }
     #settingsBtn:hover { transform:scale(1.05); }
-    
+    #settingsPanel {
+      display:none; position:absolute; bottom:70px; left:20px;
+      background:rgba(255,255,255,0.96); border-radius:16px;
+      padding:18px 20px; z-index:100;
+      box-shadow:0 4px 20px rgba(0,0,0,0.18);
+      min-width:220px; flex-direction:column; gap:12px;
+    }
     #settingsPanel.open { display:flex; }
-    
+    #settingsPanel h3 {
+      font-size:13px; color:#777; font-weight:bold; margin:0;
+      letter-spacing:0.05em;
+    }
     #countdown {
       font-size:28px; font-weight:900; color:#334; text-align:center;
       letter-spacing:0.05em;
@@ -73,14 +86,36 @@
     @keyframes spin { to { transform:rotate(360deg); } }
 
     /* ===== QRコードパネル（右下） ===== */
-    
-    
-    
-    
-    
-    
+    #qrPanel {
+      position:absolute; bottom:80px; right:20px;
+      background:rgba(255,255,255,0.96); border-radius:16px;
+      padding:12px 14px; z-index:100;
+      box-shadow:0 4px 20px rgba(0,0,0,0.22);
+      display:flex; flex-direction:column; align-items:center; gap:6px;
+    }
+    #qrCanvas { width:130px; height:130px; border-radius:4px; overflow:hidden; }
+    #qrCanvas img { width:130px !important; height:130px !important; display:block; }
+    #roomIdDisplay {
+      font-size:18px; font-weight:900; color:#334;
+      letter-spacing:0.2em; font-family:monospace;
+    }
+    #qrLabel {
+      font-size:11px; color:#888; font-weight:bold;
+      text-align:center; letter-spacing:0.03em;
+    }
+    #qrCloseBtn {
+      position:absolute; top:6px; right:8px;
+      background:none; border:none; font-size:13px; color:#aaa;
+      cursor:pointer; line-height:1; padding:2px 4px;
+    }
     #qrCloseBtn:hover { color:#555; }
-    
+    #qrToggleBtn {
+      position:absolute; bottom:20px; right:185px;
+      background:rgba(255,255,255,0.92); border:none; border-radius:50px;
+      padding:12px 18px; font-size:15px; font-weight:bold; color:#555;
+      cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.2); z-index:100;
+      transition:transform 0.15s; display:none;
+    }
     #qrToggleBtn:hover { transform:scale(1.05); }
 
     /* ===== デバッグ表示 ===== */
@@ -102,8 +137,7 @@
     #openingVideo {
       position:absolute; inset:0;
       width:100%; height:100%;
-      object-fit:contain;
-      background:#000;
+      object-fit:cover;
       display:none;
     }
     /* タップしてはじめる スタート画面 */
@@ -149,7 +183,7 @@
 <!-- ===== オープニング動画 ===== -->
 <div id="openingOverlay">
   <!-- 動画（最初は非表示） -->
-  <video id="openingVideo" src="OpeningMov.mp4"
+  <video id="openingVideo" src="https://enomachi.pages.dev/OpeningMov.mp4"
          playsinline preload="none">
   </video>
   <!-- スタート画面 -->
@@ -175,13 +209,26 @@
 
 
   <!-- QRコードパネル（右下） -->
-  
+  <div id="qrPanel">
+    <button id="qrCloseBtn" title="閉じる">✕</button>
+    <div id="qrCanvas"></div>
+    <div id="roomIdDisplay">----</div>
+    <div id="qrLabel">📱 スタッフはここをスキャン</div>
+  </div>
   <!-- QR再表示ボタン（非表示時のみ表示） -->
-  
+  <button id="qrToggleBtn">📱 QRコードを表示</button>
 
   <!-- 設定ボタン（左下） -->
-  
-  
+  <button id="settingsBtn">⏱ <span id="countdownSmall">5:00</span></button>
+  <div id="settingsPanel">
+    <h3>オープニング インターバル</h3>
+    <div id="countdown">5:00</div>
+    <div id="intervalRow">
+      <input id="intervalInput" type="number" min="1" max="999" value="3">
+      <span>分ごとに再生</span>
+    </div>
+    <button id="intervalSaveBtn">✓ 設定する</button>
+  </div>
 
   <div id="debugInfo"></div>
 </div>
@@ -194,6 +241,8 @@ let announcementState = null;
   const video         = document.getElementById('openingVideo');
   const startScreen   = document.getElementById('startScreen');
   const skipHint      = document.getElementById('skipHint');
+  const settingsBtn   = document.getElementById('settingsBtn');
+  const settingsPanel = document.getElementById('settingsPanel');
   const intervalInput = document.getElementById('intervalInput');
   const saveBtn       = document.getElementById('intervalSaveBtn');
   const countdownEl   = document.getElementById('countdown');
@@ -278,20 +327,11 @@ let announcementState = null;
 
     const chars = typeof characters !== 'undefined' ? characters : [];
     const SW = window.innerWidth;
-    const SH = window.innerHeight;
     const n = chars.length;
-    let _gxL = SW * 0.10, _gxR = SW * 0.90;
-    if (typeof bgImage !== 'undefined' && bgImage) {
-      const _bs = SH / bgImage.height;
-      const _bw = bgImage.width * _bs;
-      const _bdx = (SW - _bw) / 2;
-      _gxL = _bdx + _bw * 0.05;
-      _gxR = _bdx + _bw * 0.95;
-    }
 
     if (n > 0) {
       chars.forEach((c, idx) => {
-        const tx = n === 1 ? (_gxL + _gxR) / 2 : _gxL + (_gxR - _gxL) * idx / (n - 1);
+        const tx = n === 1 ? SW / 2 : SW * 0.10 + (SW * 0.80) * idx / (n - 1);
         c.gatherTarget = { x: tx, y: 0 };
         c.leaving = false;
         if (c.chatState) { c.chatState.active = false; c.chatState.cooldown = 0; }
@@ -302,7 +342,7 @@ let announcementState = null;
       if (n > 0) {
         chars.forEach((c, idx) => {
           c.gatherTarget = null;
-          c.x = n === 1 ? (_gxL + _gxR) / 2 : _gxL + (_gxR - _gxL) * idx / (n - 1);
+          c.x = n === 1 ? SW / 2 : SW * 0.10 + (SW * 0.80) * idx / (n - 1);
           c.y = 0;
           c.vx = 0; c.vy = 0;
           c.animType = 'wave';
@@ -400,7 +440,7 @@ const ANIMATIONS = {
     }),
   },
   dance: {
-    tSpeed: 6.0, moveMult: 0,
+    tSpeed: 6.0, moveMult: 0.4,
     fn: (t, d) => ({
       head: Math.sin(t*2)*6*D, torso: 0,
       leftArm:  -25*D + Math.sin(t*1.5)*18*D,
@@ -411,13 +451,14 @@ const ANIMATIONS = {
     }),
   },
   wave: {
-    tSpeed: 7.0, moveMult: 0,
+    tSpeed: 5.0, moveMult: 0.15,
     fn: (t, d) => ({
-      head: Math.sin(t*4)*5*D, torso: 0,
-      leftArm:   50*D + Math.sin(t*6)*18*D,
-      rightArm:  -50*D + Math.sin(t*6)*18*D,
-      leftLeg:   0, rightLeg: 0,
-      bob: 2,
+      head: Math.sin(t*2)*5*D, torso: 0,
+      leftArm:  -38*D + Math.sin(t*3)*16*D,
+      rightArm:  8*D,
+      leftLeg:   Math.sin(t*0.5)*6*D*d,
+      rightLeg: -Math.sin(t*0.5)*6*D*d,
+      bob: 1,
     }),
   },
   skip: {
@@ -491,7 +532,7 @@ const ANIMATIONS = {
     }),
   },
 };
-const ANIM_KEYS = Object.keys(ANIMATIONS).filter(k => k !== 'dance');
+const ANIM_KEYS = Object.keys(ANIMATIONS);
 
 const CHAT_PHRASES = [
   'こんにちは！', 'やあ！元気？', 'どこへ行くの？',
@@ -904,19 +945,11 @@ class Character {
     this.animAge      = Math.floor(Math.random() * this.animLifetime * 0.7);
     this.entrance = { active: true, age: 0, duration: 260 };
     const spd   = 2.0 + Math.random() * 1.2;
-    const ang   = (Math.random() - 0.5) * 0.5;
-    this.vx  = -Math.cos(ang) * spd;
+    const ang   = (Math.random() - 0.5) * 1.0;
+    const signX = Math.random() < 0.5 ? 1 : -1;
+    this.vx  = Math.cos(ang) * spd * signX;
     this.vy  = Math.sin(ang) * spd;
-    { const _SW = window.innerWidth, _SH = window.innerHeight;
-      let _xR = _SW - 30;
-      if (bgImage) {
-        const _bs = _SH / bgImage.height;
-        const _bw = bgImage.width * _bs;
-        const _bdx = (_SW - _bw) / 2;
-        _xR = _bdx + Math.round(_bw * 0.55);
-      }
-      this.x = _xR;
-    }
+    this.x   = 80 + Math.random() * (window.innerWidth - 160);
     const _initSH = window.innerHeight;
     const _initYMin = -_initSH * (0.60 - this.scale);
     this.y   = _initYMin * Math.random();
@@ -1021,16 +1054,8 @@ class Character {
         if (this.y < _yMin) this.y = _yMin;
         if (this.y > _yMax) this.y = _yMax; }
       { const _SW = window.innerWidth;
-        const _SH = window.innerHeight;
-        let _xL = 30, _xR = _SW - 30;
-        if (bgImage) {
-          const _bs = _SH / bgImage.height;
-          const _bw = bgImage.width * _bs;
-          const _bdx = (_SW - _bw) / 2;
-          _xL = _bdx + 70; _xR = _bdx + _bw - 280;
-        }
-        if (this.x < _xL) this.x = _xL;
-        if (this.x > _xR) this.x = _xR; }
+        if (this.x < 30)       this.x = 30;
+        if (this.x > _SW - 30) this.x = _SW - 30; }
       return;
     }
 
@@ -1105,16 +1130,8 @@ class Character {
     const SW = window.innerWidth;
     const SH = window.innerHeight;
 
-    let xLeft = 30, xRight = SW - 30;
-    if (bgImage) {
-      const bgScale = SH / bgImage.height;
-      const bgDw = bgImage.width * bgScale;
-      const bgDx = (SW - bgDw) / 2;
-      xLeft  = bgDx + 70;
-      xRight = bgDx + bgDw - 280;
-    }
-    if (this.x > xRight) { this.x = xRight; this.vx = -Math.abs(this.vx); }
-    if (this.x < xLeft)  { this.x = xLeft;  this.vx =  Math.abs(this.vx); }
+    if (this.x > SW - 30) { this.x = SW - 30; this.vx = -Math.abs(this.vx); }
+    if (this.x < 30)      { this.x = 30;      this.vx =  Math.abs(this.vx); }
 
     const yMax =  SH * 0.10;
     const yMin = -SH * (0.60 - this.scale);
@@ -1136,8 +1153,7 @@ class Character {
     const animState = ANIMATIONS[this.animType].fn(this.t, this.dir);
     const bob = animState.bob || 0;
     const isSleeping = !!(animState.bodyAngle);
-    const isWaving = this.animType === 'wave';
-    const ARM_CLAMP = isSleeping ? 88 * D : isWaving ? 90 * D : 38 * D;
+    const ARM_CLAMP = isSleeping ? 88 * D : 38 * D;
     const LEG_CLAMP = isSleeping ? 88 * D : 35 * D;
     const clamp = (v, lim) => Math.max(-lim, Math.min(lim, v));
     const angles = {
@@ -1320,7 +1336,7 @@ class Character {
         ctx.font = 'bold 22px sans-serif';
         const pad = 16, th = 40;
         const tw  = ctx.measureText(text).width + pad * 2;
-        const bx = Math.max(window._bgXL||8, Math.min((window._bgXR||9999) - tw, this.x - tw / 2));
+        const bx  = this.x - tw / 2;
         const by  = hTopY - th - 20;
         ctx.fillStyle   = 'rgba(255,245,200,0.97)';
         ctx.strokeStyle = '#ddaa33';
@@ -1357,14 +1373,7 @@ class Character {
         ctx.font = 'bold 20px sans-serif';
         const pad = 16, th = 40;
         const tw  = ctx.measureText(text).width + pad * 2;
-        let _bxL = 8, _bxR = screenW - 8;
-        if (bgImage) {
-          const _bs2 = screenH / bgImage.height;
-          const _bw2 = bgImage.width * _bs2;
-          _bxL = (screenW - _bw2) / 2 + 8;
-          _bxR = _bxL + _bw2 - 8;
-        }
-        const bx  = Math.max(_bxL, Math.min(_bxR - tw, hCX - tw / 2));
+        const bx  = hCX - tw / 2;
         const by  = hTopY - th - 20;
 
         ctx.fillStyle   = 'rgba(255,255,255,0.95)';
@@ -1496,8 +1505,6 @@ function loop(ts){
   }
 
   charCtx.clearRect(0,0,charCanvas.width,charCanvas.height);
-  window._bgXL = bgImage ? (charCanvas.width - bgImage.width * (charCanvas.height / bgImage.height)) / 2 + 8 : 8;
-  window._bgXR = bgImage ? window._bgXL - 8 + bgImage.width * (charCanvas.height / bgImage.height) - 8 : charCanvas.width - 8;
   for(const c of characters){ c.draw(charCtx,charCanvas.width,charCanvas.height,false); }
   for(const c of characters){ c.draw(charCtx,charCanvas.width,charCanvas.height,true); }
 
@@ -1627,12 +1634,8 @@ async function processCharacterFile(file, silent = false) {
     if (lastUnder > 0) {
       const encoded = rawName.substring(0, lastUnder);
       const b64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
-      const b64padded = b64 + '==='.slice(0, (4 - b64.length % 4) % 4);
-      const atobResult1 = atob(b64padded);
-      if (/^[\x20-\x7E]+$/.test(atobResult1)) {
-        const decoded = decodeURIComponent(atobResult1);
-        if (decoded) name = decoded;
-      }
+      const decoded = decodeURIComponent(atob(b64));
+      if (decoded) name = decoded;
     }
   } catch(e) {
     name = rawName;
@@ -1703,10 +1706,27 @@ const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const ROOM_ID = crypto.randomUUID().replace(/-/g,'').substring(0, 8).toUpperCase();
 document.getElementById('roomIdDisplay').textContent = ROOM_ID;
 
-()();
+(function generateQR() {
+  const uploadUrl = `${location.origin}/upload.html?room=${ROOM_ID}`;
+  const el = document.getElementById('qrCanvas');
+  if (el) {
+    const img = document.createElement('img');
+    img.src = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(uploadUrl)}&margin=4&color=222222`;
+    img.alt = 'QRコード';
+    img.onerror = () => {
+      el.innerHTML = '<div style="font-size:10px;color:#999;text-align:center;padding:10px;">QR生成エラー</div>';
+    };
+    el.appendChild(img);
+  }
+})();
 
 document.getElementById('qrCloseBtn').addEventListener('click', () => {
+  document.getElementById('qrPanel').style.display = 'none';
+  document.getElementById('qrToggleBtn').style.display = 'block';
 });
+document.getElementById('qrToggleBtn').addEventListener('click', () => {
+  document.getElementById('qrPanel').style.display = 'flex';
+  document.getElementById('qrToggleBtn').style.display = 'none';
 });
 
 (function startCharacterWatcher() {
@@ -1756,7 +1776,6 @@ document.getElementById('qrCloseBtn').addEventListener('click', () => {
   sbClient.channel(`enomachi-${ROOM_ID}`)
     .on('broadcast', { event: 'new_character' }, async (payload) => {
       const { filePath } = payload.payload;
-      console.log('🎯 broadcast received:', filePath);
       if (filePath) await loadAndDisplayFile(filePath);
     })
     .subscribe((status) => {
@@ -1774,12 +1793,8 @@ async function addProcessedCharacter(file, filePath = null) {
     const lastUnder = rawName.lastIndexOf('_');
     if (lastUnder > 0) {
       const b64 = rawName.substring(0, lastUnder).replace(/-/g, '+').replace(/_/g, '/');
-      const b64padded = b64 + '==='.slice(0, (4 - b64.length % 4) % 4);
-      const atobResult2 = atob(b64padded);
-      if (/^[\x20-\x7E]+$/.test(atobResult2)) {
-        const decoded = decodeURIComponent(atobResult2);
-        if (decoded) name = decoded;
-      }
+      const decoded = decodeURIComponent(atob(b64));
+      if (decoded) name = decoded;
     }
   } catch(e) { name = rawName; }
 
@@ -1842,13 +1857,11 @@ function drawBackground(){
   const W=canvas.width, H=canvas.height;
 
   if (bgImage) {
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, W, H);
-    const scale = H / bgImage.height;
+    const scale = Math.max(W / bgImage.width, H / bgImage.height);
     const dw = bgImage.width * scale;
-    const dh = H;
+    const dh = bgImage.height * scale;
     const dx = (W - dw) / 2;
-    const dy = 0;
+    const dy = (H - dh) / 2;
     ctx.drawImage(bgImage, dx, dy, dw, dh);
     return;
   }
