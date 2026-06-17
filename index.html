@@ -2,16 +2,16 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>えのまち v3 - テンプレート対応</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
+  <title>えのまち - モバイル</title>
   <!-- heic2any（HEIC変換フォールバック用） -->
   <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
   <!-- Supabase JS クライアント -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- QRコード生成 -->
-  <!-- QRコード：外部APIで生成（ライブラリ不要） -->
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
+    * { margin:0; padding:0; box-sizing:border-box;
     body { background:#000; overflow:hidden; }
     #screen { width:100vw; height:100vh; position:relative; }
     #bgCanvas  { position:absolute; inset:0; width:100%; height:100%; }
@@ -28,47 +28,6 @@
     #addBtn:hover { transform:scale(1.05); }
     #fileInput { display:none; }
 
-    /* ===== 設定ボタン＆パネル ===== */
-    #settingsBtn {
-      position:absolute; bottom:20px; left:20px;
-      background:rgba(255,255,255,0.92); border:none; border-radius:50px;
-      padding:12px 20px; font-size:16px; font-weight:bold; color:#555;
-      cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.2); z-index:100;
-      transition:transform 0.15s; display:flex; align-items:center; gap:8px;
-    }
-    #settingsBtn:hover { transform:scale(1.05); }
-    #settingsPanel {
-      display:none; position:absolute; bottom:70px; left:20px;
-      background:rgba(255,255,255,0.96); border-radius:16px;
-      padding:18px 20px; z-index:100;
-      box-shadow:0 4px 20px rgba(0,0,0,0.18);
-      min-width:220px; flex-direction:column; gap:12px;
-    }
-    #settingsPanel.open { display:flex; }
-    #settingsPanel h3 {
-      font-size:13px; color:#777; font-weight:bold; margin:0;
-      letter-spacing:0.05em;
-    }
-    #countdown {
-      font-size:28px; font-weight:900; color:#334; text-align:center;
-      letter-spacing:0.05em;
-    }
-    #intervalRow {
-      display:flex; align-items:center; gap:8px;
-      font-size:13px; color:#555;
-    }
-    #intervalInput {
-      width:52px; padding:6px 8px; border:1.5px solid #ccc;
-      border-radius:8px; font-size:15px; font-weight:bold;
-      text-align:center; color:#334;
-    }
-    #intervalSaveBtn {
-      margin-top:4px; padding:8px; border:none; border-radius:10px;
-      background:#334a7c; color:#fff; font-size:13px; font-weight:bold;
-      cursor:pointer; transition:background 0.15s;
-    }
-    #intervalSaveBtn:hover { background:#1a2f5a; }
-
     /* ===== ローディング ===== */
     #loadingOverlay {
       display:none; position:absolute; inset:0;
@@ -84,39 +43,6 @@
       animation:spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform:rotate(360deg); } }
-
-    /* ===== QRコードパネル（右下） ===== */
-    #qrPanel {
-      position:absolute; bottom:80px; right:20px;
-      background:rgba(255,255,255,0.96); border-radius:16px;
-      padding:12px 14px; z-index:100;
-      box-shadow:0 4px 20px rgba(0,0,0,0.22);
-      display:flex; flex-direction:column; align-items:center; gap:6px;
-    }
-    #qrCanvas { width:130px; height:130px; border-radius:4px; overflow:hidden; }
-    #qrCanvas img { width:130px !important; height:130px !important; display:block; }
-    #roomIdDisplay {
-      font-size:18px; font-weight:900; color:#334;
-      letter-spacing:0.2em; font-family:monospace;
-    }
-    #qrLabel {
-      font-size:11px; color:#888; font-weight:bold;
-      text-align:center; letter-spacing:0.03em;
-    }
-    #qrCloseBtn {
-      position:absolute; top:6px; right:8px;
-      background:none; border:none; font-size:13px; color:#aaa;
-      cursor:pointer; line-height:1; padding:2px 4px;
-    }
-    #qrCloseBtn:hover { color:#555; }
-    #qrToggleBtn {
-      position:absolute; bottom:20px; right:185px;
-      background:rgba(255,255,255,0.92); border:none; border-radius:50px;
-      padding:12px 18px; font-size:15px; font-weight:bold; color:#555;
-      cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.2); z-index:100;
-      transition:transform 0.15s; display:none;
-    }
-    #qrToggleBtn:hover { transform:scale(1.05); }
 
     /* ===== デバッグ表示 ===== */
     #debugInfo {
@@ -137,7 +63,8 @@
     #openingVideo {
       position:absolute; inset:0;
       width:100%; height:100%;
-      object-fit:cover;
+      object-fit:contain;
+      background:#000;
       display:none;
     }
     /* タップしてはじめる スタート画面 */
@@ -207,123 +134,31 @@
   <button id="addBtn">🎨 えをついか</button>
   <input type="file" id="fileInput" accept="image/*" multiple>
 
-
-  <!-- QRコードパネル（右下） -->
-  <div id="qrPanel">
-    <button id="qrCloseBtn" title="閉じる">✕</button>
-    <div id="qrCanvas"></div>
-    <div id="roomIdDisplay">----</div>
-    <div id="qrLabel">📱 スタッフはここをスキャン</div>
-  </div>
-  <!-- QR再表示ボタン（非表示時のみ表示） -->
-  <button id="qrToggleBtn">📱 QRコードを表示</button>
-
-  <!-- 設定ボタン（左下） -->
-  <button id="settingsBtn">⏱ <span id="countdownSmall">5:00</span></button>
-  <div id="settingsPanel">
-    <h3>オープニング インターバル</h3>
-    <div id="countdown">5:00</div>
-    <div id="intervalRow">
-      <input id="intervalInput" type="number" min="1" max="999" value="3">
-      <span>分ごとに再生</span>
-    </div>
-    <button id="intervalSaveBtn">✓ 設定する</button>
-  </div>
-
   <div id="debugInfo"></div>
 </div>
 
 <script>
-// ██████████████████████████████████████████████████████
-// ██  えのまち v3  ─  実装済みフィーチャー一覧（デグレート防止用）
-// ██████████████████████████████████████████████████████
-// 【キャラクター】
-//   ✅ テンプレート4点マーカーで自動クロップ（白背景テンプレート対応）
-//   ✅ テンプレートcrop後はそのまま使用（透過不要）
-//   ✅ 骨格アニメーション（walk/run/dance/wave/skip/march/punch/jump/sway/sleep）
-//   ✅ MAX10人：11人目が来たら最古のキャラが「帰るね〜！」吹き出しで退場
-//   ✅ ハードキャップ12人：超えたらleavingキャラを即座に除去（フリーズ防止）
-//   ✅ loop()全体をtry-catchで保護（エラーでアニメが止まらない）←削除禁止
-//   ✅ 退場：手を振りながら（waveアニメ）画面中央下へ透視遠近スケールで歩く
-//   ✅ 動的レイヤ順：前足を後足より上に描画（X字交差防止）
-//   ✅ 2パスレンダリング：全ボディ→全オーバーレイ（名前/吹き出し/ZZZが最前面）
-//   ✅ 名前タグ：足元に表示（save/restoreで保護・空名前は???フォールバック）
-//   ✅ 睡眠アニメ：bodyAngle +π/2（頭が常に右）+ ZZZ（小・中・大）同時ふわふわ
-//   ✅ bodyAngleはif(!overlaysOnly)外で宣言（削除禁止：ZZZ消えバグ＆名前消えバグ防止）
-//   ✅ 会話：移動中キャラ同士が衝突→65%確率でsway+吹き出し（font 20px）
-//   ✅ 衝突後クールダウン100フレーム
-//
-// 【移動・境界】
-//   ✅ 上部20%進入禁止：yMin = -SH*(0.60-scale)（頭=身長分を考慮した正確な境界）←削除禁止
-//      ※ -SH*0.60では「足」だけの制限で頭が飛び出す。身長(scale)を引くことで頭を止める
-//   ✅ 左右・下部の壁反射
-//   ✅ 集合フェーズ中も上部20%境界を適用（gatherTargetブロック内）
-//   ✅ 等質量弾性衝突（速度交換）
-//   ✅ アニメ自動切替：8〜20秒のランダムlifetime（stagger付き）
-//   ✅ コンストラクタでもanimAgeをstagger（削除禁止：10秒フリーズ防止）
-//   ✅ 初期animTypeはsleep除外（登場直後に止まらないように）
-//
-// 【オープニング動画】
-//   ✅ 起動時スタート画面（タップしてはじめる）→ OpeningMov.mp4 再生
-//   ✅ インターバルタイマー（デフォルト3分）で自動再生
-//   ✅ タイマー起動前3秒：キャラが徐々に一列に集合（gatherTarget操舵）
-//   ✅ 集合後2.5秒：「動画がはじまるよーー！」大吹き出し（画面中央やや上）
-//   ✅ 動画終了後：reactivateCharacters()で速度・アニメリセット（stagger付き）
-//   ✅ 二重closeOpening防止（closedフラグ）
-//
-// 【BGM】
-//   ✅ drawing sound.mp3：お絵描き中ループ再生
-//   ✅ 動画再生開始でBGM停止、動画終了でBGM再開
-//
-// 【背景】
-//   ✅ background.png/bg.jpg など自動読み込み（fallback：内蔵の町並みSVG描画）
-// ██████████████████████████████████████████████████████
-
-// ======================================================
-// ===== グローバル状態 =====
-// ======================================================
-// アナウンス状態（動画開始前の「並んで吹き出し」フェーズ）
 let announcementState = null;
 
-// ======================================================
-// ===== オープニング動画制御 ＆ インターバルタイマー（統合）=====
-// ======================================================
 (function initOpeningSystem() {
-  const overlay       = document.getElementById('openingOverlay');
-  const video         = document.getElementById('openingVideo');
-  const startScreen   = document.getElementById('startScreen');
-  const skipHint      = document.getElementById('skipHint');
-  const settingsBtn   = document.getElementById('settingsBtn');
-  const settingsPanel = document.getElementById('settingsPanel');
-  const intervalInput = document.getElementById('intervalInput');
-  const saveBtn       = document.getElementById('intervalSaveBtn');
-  const countdownEl   = document.getElementById('countdown');
-  const countdownSmall= document.getElementById('countdownSmall');
+  const overlay     = document.getElementById('openingOverlay');
+  const video       = document.getElementById('openingVideo');
+  const startScreen = document.getElementById('startScreen');
+  const skipHint    = document.getElementById('skipHint');
 
-  let intervalMin   = 3;
-  let remainingSec  = intervalMin * 60;
-  let countdownTimer= null;
-
-  // ─── BGM（お絵描き中はリピート再生、動画中は停止）───
   const bgMusic = new Audio('drawing sound.mp3');
   bgMusic.loop   = true;
   bgMusic.volume = 0.6;
 
   function resumeBgMusic() {
     if (bgMusic.paused) {
-      bgMusic.play().catch(() => {});  // autoplay blocked は無視
+      bgMusic.play().catch(() => {});
     }
   }
   function pauseBgMusic() {
     bgMusic.pause();
   }
 
-  function fmt(sec) {
-    const m = Math.floor(sec / 60), s = sec % 60;
-    return `${m}:${String(s).padStart(2,'0')}`;
-  }
-
-  // ─── キャラクターに動きを再付与するヘルパー ───
   function reactivateCharacters() {
     if (typeof characters === 'undefined') return;
     characters.forEach(c => {
@@ -335,11 +170,9 @@ let announcementState = null;
       c.vy = Math.sin(ang) * spd;
       c.dir = Math.sign(c.vx);
       if (typeof ANIM_KEYS !== 'undefined') {
-        // sleep以外のアニメをランダムに選ぶ
         const movable = ANIM_KEYS.filter(k => k !== 'sleep');
         c.animType = movable[Math.floor(Math.random() * movable.length)];
       }
-      // ★ 全員同時にアニメ切り替えを迎えないようにばらつかせる
       c.animLifetime = (8 + Math.random() * 12) * 60;
       c.animAge      = Math.floor(Math.random() * c.animLifetime * 0.6);
       c.chatState.active  = false;
@@ -347,14 +180,11 @@ let announcementState = null;
     });
   }
 
-  // ─── オーバーレイを閉じる → タイマー再スタート ───
   function closeOpening() {
-    // ★ インラインの opacity を必ずクリアしてからクラスで fade させる
     overlay.style.opacity = '';
     overlay.classList.add('fadeout');
 
-    // transitionend が何らかの理由で発火しない場合のフォールバック
-    let closed = false;  // 二重呼び出し防止
+    let closed = false;
     const fallback = setTimeout(finishClose, 1100);
     overlay.addEventListener('transitionend', () => {
       clearTimeout(fallback);
@@ -367,14 +197,12 @@ let announcementState = null;
       overlay.style.display = 'none';
       video.pause();
       try { reactivateCharacters(); } catch(e) { console.warn('reactivate:', e); }
-      resumeBgMusic();  // ★ お絵描き再開でBGMも再開
-      resetTimer();
+      resumeBgMusic();
     }
   }
 
-  // ─── 動画再生（スタート画面通過後 / タイマートリガー後）───
   function playVideo() {
-    pauseBgMusic();  // ★ 動画中はBGMを止める
+    pauseBgMusic();
     startScreen.style.display = 'none';
     video.style.display  = 'block';
     skipHint.style.display = 'block';
@@ -382,126 +210,16 @@ let announcementState = null;
     video.play().catch(closeOpening);
   }
 
-  // ─── タイマーによる自動再生 ───
-  function triggerOpening() {
-    // ★ インターバルを即停止（二重発火防止）
-    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-
-    const chars = typeof characters !== 'undefined' ? characters : [];
-    const SW = window.innerWidth;
-    const n = chars.length;
-
-    // ── Phase 1（今すぐ）：集合ターゲットをセット → 3秒かけてゆっくり集まる ──
-    if (n > 0) {
-      chars.forEach((c, idx) => {
-        const tx = n === 1 ? SW / 2 : SW * 0.10 + (SW * 0.80) * idx / (n - 1);
-        c.gatherTarget = { x: tx, y: 0 };
-        c.leaving = false;
-        if (c.chatState) { c.chatState.active = false; c.chatState.cooldown = 0; }
-      });
-    }
-
-    // ── Phase 2（3秒後）：吹き出し表示・全員waveに固定 ──
-    setTimeout(() => {
-      if (n > 0) {
-        chars.forEach((c, idx) => {
-          c.gatherTarget = null;          // 集合完了
-          c.x = n === 1 ? SW / 2 : SW * 0.10 + (SW * 0.80) * idx / (n - 1);
-          c.y = 0;
-          c.vx = 0; c.vy = 0;
-          c.animType = 'wave';
-          c.t = (idx / Math.max(n, 1)) * Math.PI * 2;
-          c.dir = 1;
-        });
-      }
-      announcementState = { active: true, age: 0 };
-
-      // ── Phase 3（さらに2.5秒後）：動画再生 ──
-      setTimeout(() => {
-        announcementState = null;
-        try { reactivateCharacters(); } catch(e) { console.warn('reactivate:', e); }
-        overlay.classList.remove('fadeout');
-        overlay.style.opacity = '';
-        overlay.style.display = 'flex';
-        playVideo();
-      }, 2500);
-    }, 3000);
-  }
-
-  // ─── イベント登録（1回だけ・重複なし）───
-  // モバイルでは click が動かないため touchstart / pointerdown も登録
-  ['click', 'touchstart', 'pointerdown'].forEach(function(evt) {
-    startScreen.addEventListener(evt, function(e) {
-      e.preventDefault();
-      playVideo();
-    }, { once: true, passive: false });
-  });
-  video.addEventListener('ended',  closeOpening);   // ★ 終了 → closeOpening で戻る
-  ['click', 'touchstart', 'pointerdown'].forEach(function(evt) {
-    video.addEventListener(evt, function(e) {
-      e.preventDefault();
-      closeOpening();
-    }, { once: true, passive: false });
-  });
-  ['click', 'touchstart', 'pointerdown'].forEach(function(evt) {
-    skipHint.addEventListener(evt, function(e) {
-      e.preventDefault();
-      closeOpening();
-    }, { once: true, passive: false });
-  });
-  // video.addEventListener('error', closeOpening); // 動画ファイルがない場合にオープニングが消えるのを防ぐため無効化
-
-  // ─── カウントダウンタイマー ───
-  function tick() {
-    remainingSec--;
-    countdownEl.textContent     = fmt(remainingSec);
-    countdownSmall.textContent  = fmt(remainingSec);
-    if (remainingSec <= 0) {
-      clearInterval(countdownTimer); countdownTimer = null;
-      triggerOpening();
-    }
-  }
-  function startTimer() {
-    if (countdownTimer) clearInterval(countdownTimer);
-    countdownTimer = setInterval(tick, 1000);
-  }
-  function resetTimer() {
-    remainingSec = intervalMin * 60;
-    countdownEl.textContent     = fmt(remainingSec);
-    countdownSmall.textContent  = fmt(remainingSec);
-    startTimer();
-  }
-
-  // ─── 設定パネル ───
-  settingsBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    settingsPanel.classList.toggle('open');
-  });
-  document.addEventListener('click', (e) => {
-    if (!settingsPanel.contains(e.target) && e.target !== settingsBtn)
-      settingsPanel.classList.remove('open');
-  });
-  saveBtn.addEventListener('click', () => {
-    const v = parseInt(intervalInput.value);
-    if (v >= 1) { intervalMin = v; resetTimer(); settingsPanel.classList.remove('open'); }
-  });
-
-  // 起動
-  resetTimer();
+  startScreen.addEventListener('click', playVideo);
+  video.addEventListener('ended',  closeOpening);
+  video.addEventListener('click',  closeOpening);
+  skipHint.addEventListener('click', closeOpening);
 })();
 
-// ======================================================
-// ===== 設定（remove.bgフォールバック用）=====
-// ======================================================
 const SUPABASE_URL   = 'https://xcrancxreztiapactveo.supabase.co';
 const FUNCTION_NAME  = 'remove-bg';
 const SUPABASE_ANON  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjcmFuY3hyZXp0aWFwYWN0dmVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzODc2ODUsImV4cCI6MjA5MDk2MzY4NX0.Jc9dV_Z4ADQoITuejBghQWhBXFRH-RDAww0EGAlkLbo';
 
-// ======================================================
-// ===== テンプレートのパーツ座標（固定）=====
-// クロップ後の画像（マーカー間の内側エリア）に対する割合
-// enomachi_template.pdf の点線位置に合わせた値
-// ======================================================
 const FORMAT = {
   head:     { sx:0.30, sy:0.06, sw:0.41, sh:0.28, pvx:0.50, pvy:0.93 },
   torso:    { sx:0.33, sy:0.34, sw:0.33, sh:0.33, pvx:0.50, pvy:0.00 },
@@ -534,7 +252,7 @@ const ANIMATIONS = {
     }),
   },
   dance: {
-    tSpeed: 6.0, moveMult: 0.4,
+    tSpeed: 6.0, moveMult: 0,
     fn: (t, d) => ({
       head: Math.sin(t*2)*6*D, torso: 0,
       leftArm:  -25*D + Math.sin(t*1.5)*18*D,
@@ -545,14 +263,13 @@ const ANIMATIONS = {
     }),
   },
   wave: {
-    tSpeed: 5.0, moveMult: 0.15,
+    tSpeed: 7.0, moveMult: 0,
     fn: (t, d) => ({
-      head: Math.sin(t*2)*5*D, torso: 0,
-      leftArm:  -38*D + Math.sin(t*3)*16*D,
-      rightArm:  8*D,
-      leftLeg:   Math.sin(t*0.5)*6*D*d,
-      rightLeg: -Math.sin(t*0.5)*6*D*d,
-      bob: 1,
+      head: Math.sin(t*4)*5*D, torso: 0,
+      leftArm:   50*D + Math.sin(t*6)*18*D,
+      rightArm:  -50*D + Math.sin(t*6)*18*D,
+      leftLeg:   0, rightLeg: 0,
+      bob: 2,
     }),
   },
   skip: {
@@ -626,7 +343,7 @@ const ANIMATIONS = {
     }),
   },
 };
-const ANIM_KEYS = Object.keys(ANIMATIONS);
+const ANIM_KEYS = Object.keys(ANIMATIONS).filter(k => k !== 'dance');
 
 const CHAT_PHRASES = [
   'こんにちは！', 'やあ！元気？', 'どこへ行くの？',
@@ -1039,11 +756,19 @@ class Character {
     this.animAge      = Math.floor(Math.random() * this.animLifetime * 0.7);
     this.entrance = { active: true, age: 0, duration: 260 };
     const spd   = 2.0 + Math.random() * 1.2;
-    const ang   = (Math.random() - 0.5) * 1.0;
-    const signX = Math.random() < 0.5 ? 1 : -1;
-    this.vx  = Math.cos(ang) * spd * signX;
+    const ang   = (Math.random() - 0.5) * 0.5;
+    this.vx  = -Math.cos(ang) * spd;
     this.vy  = Math.sin(ang) * spd;
-    this.x   = 80 + Math.random() * (window.innerWidth - 160);
+    { const _SW = window.innerWidth, _SH = window.innerHeight;
+      let _xR = _SW - 30;
+      if (bgImage) {
+        const _bs = _SH / bgImage.height;
+        const _bw = bgImage.width * _bs;
+        const _bdx = (_SW - _bw) / 2;
+        _xR = _bdx + Math.round(_bw * 0.55);
+      }
+      this.x = _xR;
+    }
     const _initSH = window.innerHeight;
     const _initYMin = -_initSH * (0.60 - this.scale);
     this.y   = _initYMin * Math.random();
@@ -1148,8 +873,16 @@ class Character {
         if (this.y < _yMin) this.y = _yMin;
         if (this.y > _yMax) this.y = _yMax; }
       { const _SW = window.innerWidth;
-        if (this.x < 30)       this.x = 30;
-        if (this.x > _SW - 30) this.x = _SW - 30; }
+        const _SH = window.innerHeight;
+        let _xL = 30, _xR = _SW - 30;
+        if (bgImage) {
+          const _bs = _SH / bgImage.height;
+          const _bw = bgImage.width * _bs;
+          const _bdx = (_SW - _bw) / 2;
+          _xL = _bdx + 70; _xR = _bdx + _bw - 280;
+        }
+        if (this.x < _xL) this.x = _xL;
+        if (this.x > _xR) this.x = _xR; }
       return;
     }
 
@@ -1224,8 +957,16 @@ class Character {
     const SW = window.innerWidth;
     const SH = window.innerHeight;
 
-    if (this.x > SW - 30) { this.x = SW - 30; this.vx = -Math.abs(this.vx); }
-    if (this.x < 30)      { this.x = 30;      this.vx =  Math.abs(this.vx); }
+    let xLeft = 30, xRight = SW - 30;
+    if (bgImage) {
+      const bgScale = SH / bgImage.height;
+      const bgDw = bgImage.width * bgScale;
+      const bgDx = (SW - bgDw) / 2;
+      xLeft  = bgDx + 70;
+      xRight = bgDx + bgDw - 280;
+    }
+    if (this.x > xRight) { this.x = xRight; this.vx = -Math.abs(this.vx); }
+    if (this.x < xLeft)  { this.x = xLeft;  this.vx =  Math.abs(this.vx); }
 
     const yMax =  SH * 0.10;
     const yMin = -SH * (0.60 - this.scale);
@@ -1247,7 +988,8 @@ class Character {
     const animState = ANIMATIONS[this.animType].fn(this.t, this.dir);
     const bob = animState.bob || 0;
     const isSleeping = !!(animState.bodyAngle);
-    const ARM_CLAMP = isSleeping ? 88 * D : 38 * D;
+    const isWaving = this.animType === 'wave';
+    const ARM_CLAMP = isSleeping ? 88 * D : isWaving ? 90 * D : 38 * D;
     const LEG_CLAMP = isSleeping ? 88 * D : 35 * D;
     const clamp = (v, lim) => Math.max(-lim, Math.min(lim, v));
     const angles = {
@@ -1430,7 +1172,7 @@ class Character {
         ctx.font = 'bold 22px sans-serif';
         const pad = 16, th = 40;
         const tw  = ctx.measureText(text).width + pad * 2;
-        const bx  = this.x - tw / 2;
+        const bx = Math.max(window._bgXL||8, Math.min((window._bgXR||9999) - tw, this.x - tw / 2));
         const by  = hTopY - th - 20;
         ctx.fillStyle   = 'rgba(255,245,200,0.97)';
         ctx.strokeStyle = '#ddaa33';
@@ -1467,7 +1209,14 @@ class Character {
         ctx.font = 'bold 20px sans-serif';
         const pad = 16, th = 40;
         const tw  = ctx.measureText(text).width + pad * 2;
-        const bx  = hCX - tw / 2;
+        let _bxL = 8, _bxR = screenW - 8;
+        if (bgImage) {
+          const _bs2 = screenH / bgImage.height;
+          const _bw2 = bgImage.width * _bs2;
+          _bxL = (screenW - _bw2) / 2 + 8;
+          _bxR = _bxL + _bw2 - 8;
+        }
+        const bx  = Math.max(_bxL, Math.min(_bxR - tw, hCX - tw / 2));
         const by  = hTopY - th - 20;
 
         ctx.fillStyle   = 'rgba(255,255,255,0.95)';
@@ -1599,6 +1348,8 @@ function loop(ts){
   }
 
   charCtx.clearRect(0,0,charCanvas.width,charCanvas.height);
+  window._bgXL = bgImage ? (charCanvas.width - bgImage.width * (charCanvas.height / bgImage.height)) / 2 + 8 : 8;
+  window._bgXR = bgImage ? window._bgXL - 8 + bgImage.width * (charCanvas.height / bgImage.height) - 8 : charCanvas.width - 8;
   for(const c of characters){ c.draw(charCtx,charCanvas.width,charCanvas.height,false); }
   for(const c of characters){ c.draw(charCtx,charCanvas.width,charCanvas.height,true); }
 
@@ -1728,8 +1479,12 @@ async function processCharacterFile(file, silent = false) {
     if (lastUnder > 0) {
       const encoded = rawName.substring(0, lastUnder);
       const b64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
-      const decoded = decodeURIComponent(atob(b64));
-      if (decoded) name = decoded;
+      const b64padded = b64 + '==='.slice(0, (4 - b64.length % 4) % 4);
+      const atobResult1 = atob(b64padded);
+      if (/^[\x20-\x7E]+$/.test(atobResult1)) {
+        const decoded = decodeURIComponent(atobResult1);
+        if (decoded) name = decoded;
+      }
     }
   } catch(e) {
     name = rawName;
@@ -1797,32 +1552,6 @@ const SUPABASE_BUCKET = 'characters';
 
 const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const ROOM_ID = crypto.randomUUID().replace(/-/g,'').substring(0, 8).toUpperCase();
-document.getElementById('roomIdDisplay').textContent = ROOM_ID;
-
-(function generateQR() {
-  const uploadUrl = `${location.origin}/upload.html?room=${ROOM_ID}`;
-  const el = document.getElementById('qrCanvas');
-  if (el) {
-    const img = document.createElement('img');
-    img.src = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(uploadUrl)}&margin=4&color=222222`;
-    img.alt = 'QRコード';
-    img.onerror = () => {
-      el.innerHTML = '<div style="font-size:10px;color:#999;text-align:center;padding:10px;">QR生成エラー</div>';
-    };
-    el.appendChild(img);
-  }
-})();
-
-document.getElementById('qrCloseBtn').addEventListener('click', () => {
-  document.getElementById('qrPanel').style.display = 'none';
-  document.getElementById('qrToggleBtn').style.display = 'block';
-});
-document.getElementById('qrToggleBtn').addEventListener('click', () => {
-  document.getElementById('qrPanel').style.display = 'flex';
-  document.getElementById('qrToggleBtn').style.display = 'none';
-});
-
 (function startCharacterWatcher() {
   const IMAGE_EXTS = new Set(['jpg','jpeg','png','webp','heic','heif']);
 
@@ -1853,28 +1582,29 @@ document.getElementById('qrToggleBtn').addEventListener('click', () => {
     try {
       const { data: files } = await sbClient.storage
         .from(SUPABASE_BUCKET)
-        .list(ROOM_ID, { sortBy: { column: 'created_at', order: 'asc' } });
+        .list('upload', { sortBy: { column: 'created_at', order: 'asc' } });
 
       if (!files || files.length === 0) return;
       const imageFiles = files.filter(f =>
         IMAGE_EXTS.has(f.name.split('.').pop().toLowerCase())
       );
       for (const f of imageFiles) {
-        await loadAndDisplayFile(`${ROOM_ID}/${f.name}`);
+        await loadAndDisplayFile(`upload/${f.name}`);
       }
     } catch(e) {
       console.warn('checkExistingFiles error:', e);
     }
   }
 
-  sbClient.channel(`enomachi-${ROOM_ID}`)
+  sbClient.channel('enomachi-upload')
     .on('broadcast', { event: 'new_character' }, async (payload) => {
       const { filePath } = payload.payload;
+      console.log('🎯 broadcast received:', filePath);
       if (filePath) await loadAndDisplayFile(filePath);
     })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-        console.log(`✅ Realtime接続 room=${ROOM_ID}`);
+        console.log('✅ Realtime接続');
         checkExistingFiles();
       }
     });
@@ -1887,8 +1617,12 @@ async function addProcessedCharacter(file, filePath = null) {
     const lastUnder = rawName.lastIndexOf('_');
     if (lastUnder > 0) {
       const b64 = rawName.substring(0, lastUnder).replace(/-/g, '+').replace(/_/g, '/');
-      const decoded = decodeURIComponent(atob(b64));
-      if (decoded) name = decoded;
+      const b64padded = b64 + '==='.slice(0, (4 - b64.length % 4) % 4);
+      const atobResult2 = atob(b64padded);
+      if (/^[\x20-\x7E]+$/.test(atobResult2)) {
+        const decoded = decodeURIComponent(atobResult2);
+        if (decoded) name = decoded;
+      }
     }
   } catch(e) { name = rawName; }
 
@@ -1951,11 +1685,13 @@ function drawBackground(){
   const W=canvas.width, H=canvas.height;
 
   if (bgImage) {
-    const scale = Math.max(W / bgImage.width, H / bgImage.height);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    const scale = H / bgImage.height;
     const dw = bgImage.width * scale;
-    const dh = bgImage.height * scale;
+    const dh = H;
     const dx = (W - dw) / 2;
-    const dy = (H - dh) / 2;
+    const dy = 0;
     ctx.drawImage(bgImage, dx, dy, dw, dh);
     return;
   }
